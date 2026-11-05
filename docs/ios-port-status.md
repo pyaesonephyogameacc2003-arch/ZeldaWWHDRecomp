@@ -10,6 +10,7 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - Added an initial iOS `MACOSX_BUNDLE` target, iOS bundle identifier/deployment settings, a landscape-only `ios/Info.plist.in`, and the SDL3 platform entry-point header in `main.cpp`.
 - The SDL host's input implementation is currently desktop-oriented: its key mapping uses macOS virtual-key constants, and the shared event handler has no native iOS touch-to-gamepad mapping. Existing Android touch controls are separate Android-specific code and are not automatically available on iOS.
 - The Vulkan path requires an iOS-compatible Vulkan loader and MoltenVK build; the existing release helper packages macOS dylibs, not iOS frameworks.
+- The bundled SDL3 dependency configuration now selects a static SDL3 library for iOS app targets instead of requesting a standalone shared SDL library; desktop and installer settings remain on their existing paths.
 - These changes only establish build-system and app-bundle scaffolding. They are not proof that SDL3 + MoltenVK, the app lifecycle, or the runtime can build or run on iOS.
 
 ## Target
@@ -43,3 +44,13 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - Do not modify the existing graphics/FPS settings or silently change their defaults.
 - Do not include Nintendo game data, keys, or copyrighted assets in the repository or build artifacts. The user supplies their own game files.
 - Keep all experiments on this branch until the iOS build and host are validated.
+
+
+## Additional source audit (2026-11-06)
+
+- `cmake/WindowsDependencies.cmake` previously forced SDL3 shared-library mode for the SDL host. iOS application targets now select SDL3 static mode, so SDL is linked into the app bundle; non-iOS desktop and installer behavior is unchanged.
+- `runtime/src/platform/input_sdl.cpp` still maps SDL keyboard scancodes through macOS `kVK_*` constants and has no iOS touch UI implementation. This is not a build-only issue: without a touch-to-gamepad layer, a phone user cannot reliably play using the screen.
+- `runtime/src/platform/native.mm` only supplies an Objective-C autorelease-pool wrapper using Foundation; it does not provide an iOS Vulkan surface or solve MoltenVK packaging.
+- `runtime/src/platform/host.h` uses Apple Mach-O executable symbols, Apple thread QoS, and Apple memory-residency APIs under the broad `__APPLE__` condition. These APIs need an iOS SDK compile check; their presence in an Apple build is not proof of iOS runtime compatibility.
+- The Vulkan CMake branch on Apple links `Vulkan::Vulkan` and glslang directly for the SDL host. An iOS toolchain still needs an iOS-built Vulkan loader/MoltenVK package and a valid CMake package config; the current repository dependency script does not produce that framework.
+- Guest-memory mapping and executable-memory/JIT behavior remain unverified. No claim is made that the runtime can execute on a non-jailbroken iPhone until those checks and an actual device test pass.
