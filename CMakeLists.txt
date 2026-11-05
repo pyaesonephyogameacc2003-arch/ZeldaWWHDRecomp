@@ -293,12 +293,32 @@ if(ANDROID)
   # Android: SDLActivity loads the game as libmain.so and calls its SDL_main (android/)
   add_library(wwhd SHARED ${RUNTIME_SOURCES} ${GX2_SOURCES} ${GFX_SOURCES} ${MOD_GFX_SOURCES} ${IMGUI_METAL})
   set_target_properties(wwhd PROPERTIES OUTPUT_NAME main)
+elseif(WWHD_IOS)
+  # iOS requires an application bundle; SDL3's UIKit entry point calls SDL_main.
+  add_executable(wwhd MACOSX_BUNDLE ${RUNTIME_SOURCES} ${GX2_SOURCES} ${GFX_SOURCES} ${MOD_GFX_SOURCES} ${IMGUI_METAL})
+  set(WWHD_IOS_BUNDLE_ID "org.wwhdrecomp.ios" CACHE STRING "iOS application bundle identifier")
+  set(WWHD_IOS_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS version")
+  set(CMAKE_XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+  configure_file(ios/Info.plist.in ${CMAKE_BINARY_DIR}/ios-Info.plist @ONLY)
+  set_target_properties(wwhd PROPERTIES
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/ios-Info.plist"
+    MACOSX_BUNDLE_BUNDLE_NAME "Wind Waker HD Recomp"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "${WWHD_IOS_BUNDLE_ID}"
+    XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${WWHD_IOS_DEPLOYMENT_TARGET}"
+    XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
 else()
   add_executable(wwhd ${RUNTIME_SOURCES} ${GX2_SOURCES} ${GFX_SOURCES} ${MOD_GFX_SOURCES} ${IMGUI_METAL})
 endif()
 target_include_directories(wwhd PRIVATE runtime/include runtime/src runtime/src/gx2)
 add_dependencies(wwhd wwhd_build_info)
 target_compile_options(wwhd PRIVATE -Wall -Wno-unused-function -Wno-unused-variable -ffp-contract=off)
+if(WWHD_IOS)
+  target_compile_definitions(wwhd PRIVATE WWHD_IOS=1)
+  target_link_libraries(wwhd PRIVATE
+    "-framework UIKit" "-framework Foundation" "-framework QuartzCore"
+    "-framework AVFoundation" "-framework AudioToolbox" "-framework GameController"
+    "-framework CoreGraphics" compression)
+endif()
 if(NOT TARGET ZLIB::ZLIB)
   find_package(ZLIB REQUIRED)
 endif()
