@@ -7,7 +7,7 @@
   <key>CFBundleDisplayName</key>
   <string>Wind Waker HD</string>
   <key>CFBundleExecutable</key>
-  <string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+  <string>wwhd</string>
   <key>CFBundleIdentifier</key>
   <string>${WWHD_IOS_BUNDLE_ID}</string>
   <key>CFBundleInfoDictionaryVersion</key>
