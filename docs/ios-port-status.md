@@ -92,3 +92,10 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - The Android virtual gamepad is not a ready-made iOS control surface: it depends on Java `TouchControls`, JNI callbacks, Android-specific visibility/options state, and Android-only event routing.
 - The SDL Vulkan backend creates a TV window and, when dual-screen mode is enabled, a second GamePad window. iOS single-window/multi-window behavior and the intended one-screen layout have not been validated. An iOS host should explicitly choose a supported one-screen presentation and map UIKit/SDL finger events to the existing guest touch/gamepad APIs.
 - Do not mark touchscreen play as supported until a device test covers simultaneous multi-touch, sticks/buttons, overlay interaction, finger cancellation, background/foreground transitions, and the GamePad touch surface.
+
+
+## iOS keyboard-keycode header fix (2026-11-06)
+
+- `runtime/src/platform/keycodes.h` previously selected Apple's Carbon header for every `__APPLE__` target.
+- Carbon is a macOS desktop API and is not an iOS dependency. The header now uses Carbon only for Apple non-iOS builds; iOS uses the existing portable physical-keycode constants already provided for non-Apple hosts.
+- This removes one known iOS SDK header-availability blocker for the SDL input source. It does not add touchscreen controls or establish that the full SDL input source compiles on iOS.
