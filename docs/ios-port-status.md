@@ -8,6 +8,8 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - iOS defaults to the Vulkan renderer path and SDL host rather than the AppKit-backed Metal host.
 - The macOS-only AppKit Vulkan menu is excluded from iOS builds, and the SDL host link list no longer links AppKit on iOS.
 - Added an initial iOS `MACOSX_BUNDLE` target, iOS bundle identifier/deployment settings, a landscape-only `ios/Info.plist.in`, and the SDL3 platform entry-point header in `main.cpp`.
+- The SDL host's input implementation is currently desktop-oriented: its key mapping uses macOS virtual-key constants, and the shared event handler has no native iOS touch-to-gamepad mapping. Existing Android touch controls are separate Android-specific code and are not automatically available on iOS.
+- The Vulkan path requires an iOS-compatible Vulkan loader and MoltenVK build; the existing release helper packages macOS dylibs, not iOS frameworks.
 - These changes only establish build-system and app-bundle scaffolding. They are not proof that SDL3 + MoltenVK, the app lifecycle, or the runtime can build or run on iOS.
 
 ## Target
@@ -28,11 +30,12 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 ## Port sequence
 
 1. Verify the iOS CMake toolchain and dependency build (SDL3, Vulkan headers/loader, MoltenVK, glslang, zlib, and LZ4) on a macOS runner.
-2. Verify the new iOS bundle target and SDL3 entry point against the pinned SDL3 release; implement and verify UIKit lifecycle/presentation integration. The current runtime still assumes a desktop-style executable in several places.
-3. Add touch/controller input, app lifecycle pause/resume, iOS audio-session handling, and sandbox document import for the user's own legally obtained game dump.
-4. Audit fixed-address guest-memory reservations and executable-memory/JIT assumptions on iOS. This is a critical feasibility gate; do not assume an IPA can run merely because it links.
-5. Add an ARM64 Xcode build, resolve iOS-specific Vulkan/MoltenVK dependency packaging and code-signing constraints, then add unsigned IPA packaging.
-6. Build on GitHub Actions, fix compiler/linker errors, and only call it device-ready after installation and runtime testing on an iPhone.
+2. Add an iOS-specific SDL input path: map touch gestures to the existing gamepad state, preserve external controller support, and handle background/foreground events. Do not reuse Android Java touch code.
+3. Build and package an iOS-compatible Vulkan loader + MoltenVK framework (the existing macOS packaging script is not reusable as-is), then verify SDL3's iOS Vulkan surface creation.
+4. Add app lifecycle pause/resume, iOS audio-session handling, and sandbox document import for the user's own legally obtained game dump.
+5. Audit fixed-address guest-memory reservations and executable-memory/JIT assumptions on iOS. This is a critical feasibility gate; do not assume an IPA can run merely because it links.
+6. Add an ARM64 Xcode build and unsigned IPA packaging only after the renderer, input, memory and JIT gates pass.
+7. Build on GitHub Actions, fix compiler/linker errors, and only call it device-ready after installation and runtime testing on an iPhone.
 
 ## Guardrails
 
