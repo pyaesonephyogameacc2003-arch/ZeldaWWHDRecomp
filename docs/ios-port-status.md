@@ -83,3 +83,12 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - The iOS Vulkan target includes `runtime/src/platform/native.mm` for Foundation autorelease-pool boundaries.
 - CMake previously enabled Objective-C++ only for the macOS Metal renderer. The iOS Vulkan configuration could therefore reach an Objective-C++ source without enabling the OBJCXX language.
 - The iOS platform branch now explicitly enables OBJCXX and sets its language standard to C++20. This removes that CMake language-configuration gap; it is not a substitute for an Xcode/iOS SDK compile.
+
+
+## iOS touch routing and display-host audit (2026-11-06)
+
+- `runtime/src/platform/touch_pad.cpp` and `touch_options.cpp` expose the on-screen virtual gamepad through Android JNI only. On iOS those translation units currently compile as no-op files.
+- The Vulkan SDL host has a generic mouse/touch path, but the dedicated multi-finger SDL finger routing in `runtime/src/gfx/vulkan/backend.cpp` is guarded by `__ANDROID__`. It handles Android GamePad screen touch, view switching, touch-talk/mod gestures, and Android touch-to-mouse filtering. iOS does not currently get that routing.
+- The Android virtual gamepad is not a ready-made iOS control surface: it depends on Java `TouchControls`, JNI callbacks, Android-specific visibility/options state, and Android-only event routing.
+- The SDL Vulkan backend creates a TV window and, when dual-screen mode is enabled, a second GamePad window. iOS single-window/multi-window behavior and the intended one-screen layout have not been validated. An iOS host should explicitly choose a supported one-screen presentation and map UIKit/SDL finger events to the existing guest touch/gamepad APIs.
+- Do not mark touchscreen play as supported until a device test covers simultaneous multi-touch, sticks/buttons, overlay interaction, finger cancellation, background/foreground transitions, and the GamePad touch surface.
