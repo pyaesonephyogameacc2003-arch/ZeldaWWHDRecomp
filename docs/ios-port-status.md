@@ -58,3 +58,12 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - The SDL touch-controller bridge in `runtime/src/platform/touch_pad.cpp` and its Java view `android/.../TouchControls.java` are guarded by `__ANDROID__`; iOS currently has no equivalent on-screen controller. SDL touch-as-mouse events alone do not reproduce the Android virtual gamepad, context buttons, sticks, and touch gestures.
 - The editor MCP localhost server is desktop tooling and is now excluded from iOS runtime sources; its CMake option defaults OFF for iOS while retaining the existing ON default on other platforms.
 - This is a source-level change only. It does not establish that an iOS SDK compile, IPA package, or device launch succeeds.
+
+
+## Fixed-address memory audit (2026-11-06)
+
+- The 4 GiB guest address window is defined by `PPC_MEM_BASE` in `runtime/include/ppc.h`. The current non-Android Apple value is `0x200000000000`; iOS therefore inherits the macOS address rather than an iOS-validated base.
+- `runtime/src/core.cpp::mem::init()` enters the broad `__APPLE__` branch and calls `mach_vm_allocate(mach_task_self(), &addr, 0x100000000, VM_FLAGS_FIXED)`, then protects the first 64 KiB with `mprotect(PROT_NONE)`.
+- This confirms the reservation mechanism and its fixed 4 GiB requirement, but not that iOS will accept the address under its process address-space layout or that the allocation behaves correctly on a non-jailbroken device. Do not replace it with an arbitrary address or `MAP_FIXED` fallback without an iOS SDK/device test.
+- The generated PowerPC code is compiled into the native application; the guest-memory reservation is a separate requirement from executable JIT allocation. The current source audit has not yet established whether every runtime code-modification path is compatible with iOS code-signing and executable-memory restrictions.
+- The next memory gate is a minimal iOS-targeted reservation probe using the same address, size, Mach VM flags, and null-page guard, followed by a real device run. The probe must fail cleanly and report the Mach error instead of crashing during startup.
