@@ -76,3 +76,10 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - Its signal handler calls the write-fault path, which invokes `mprotect` from signal context and chains unhandled faults to the previously installed handlers. The ordering and handler interaction must be verified on iOS; do not assume macOS behavior proves iOS behavior.
 - The current startup order installs the main crash handler before guest-memory initialization, and the write tracker later saves/chains the prior SIGSEGV/SIGBUS handlers. This interaction is part of the iOS smoke-test gate.
 - A minimal iOS probe should test: fixed 4 GiB reservation, null-page protection, one write-watch arm/fault/unprotect cycle, and correct forwarding of an unrelated SIGSEGV/SIGBUS. If any step is unsupported or unstable, the app must disable write tracking safely or use a separately validated fallback before a full game build.
+
+
+## iOS Objective-C++ build-language fix (2026-11-06)
+
+- The iOS Vulkan target includes `runtime/src/platform/native.mm` for Foundation autorelease-pool boundaries.
+- CMake previously enabled Objective-C++ only for the macOS Metal renderer. The iOS Vulkan configuration could therefore reach an Objective-C++ source without enabling the OBJCXX language.
+- The iOS platform branch now explicitly enables OBJCXX and sets its language standard to C++20. This removes that CMake language-configuration gap; it is not a substitute for an Xcode/iOS SDK compile.
