@@ -63,9 +63,11 @@
 #include "overlay/editor_panel.h"
 #include "editor/editor_game.h"
 #include "editor/mcp_game.h"
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(WWHD_IOS)
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>  // main() becomes SDL_main, called by SDLActivity
+#include <SDL3/SDL_main.h>  // Android/iOS platform entry point calls SDL_main
+#endif
+#ifdef __ANDROID__
 namespace interp { void set_mode(int); }
 #endif
 
