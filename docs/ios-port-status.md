@@ -1,6 +1,13 @@
 # iOS port investigation
 
-Status: investigation only; this branch does not yet contain an iOS app or a working IPA build.
+Status: early platform groundwork; this branch does not yet contain an iOS app or a working IPA build.
+
+## Implemented groundwork
+
+- Top-level CMake now detects `CMAKE_SYSTEM_NAME=iOS` separately from macOS.
+- iOS defaults to the Vulkan renderer path and SDL host rather than the AppKit-backed Metal host.
+- The macOS-only AppKit Vulkan menu is excluded from iOS builds, and the SDL host link list no longer links AppKit on iOS.
+- These changes only select a plausible host/backend combination. They are not proof that SDL3 + MoltenVK, the app lifecycle, or the runtime can build or run on iOS.
 
 ## Target
 
@@ -19,11 +26,11 @@ Status: investigation only; this branch does not yet contain an iOS app or a wor
 
 ## Port sequence
 
-1. Introduce an explicit iOS platform branch in CMake without changing macOS, Android, Windows, or Linux behavior.
-2. Choose and implement a supported iOS presentation host (UIKit + CAMetalLayer/MTKView, or a verified SDL3 iOS host) and connect the existing renderer's presentation path.
-3. Add touch/controller input, app lifecycle pause/resume, audio-session handling, and sandbox document import for the user's own legally obtained game dump.
+1. Verify the iOS CMake toolchain and dependency build (SDL3, Vulkan headers/loader, MoltenVK, glslang, zlib, and LZ4) on a macOS runner.
+2. Implement and verify the SDL3 iOS presentation host, UIKit lifecycle integration, and SDL iOS entry point; the current runtime still assumes a desktop-style executable in several places.
+3. Add touch/controller input, app lifecycle pause/resume, iOS audio-session handling, and sandbox document import for the user's own legally obtained game dump.
 4. Audit fixed-address guest-memory reservations and executable-memory/JIT assumptions on iOS. This is a critical feasibility gate; do not assume an IPA can run merely because it links.
-5. Add an iOS arm64 CMake/Xcode build and unsigned IPA packaging workflow.
+5. Add an iOS application bundle target, Info.plist, ARM64 Xcode build, and unsigned IPA packaging workflow.
 6. Build on GitHub Actions, fix compiler/linker errors, and only call it device-ready after installation and runtime testing on an iPhone.
 
 ## Guardrails
