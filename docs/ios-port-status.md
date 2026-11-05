@@ -67,3 +67,12 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - This confirms the reservation mechanism and its fixed 4 GiB requirement, but not that iOS will accept the address under its process address-space layout or that the allocation behaves correctly on a non-jailbroken device. Do not replace it with an arbitrary address or `MAP_FIXED` fallback without an iOS SDK/device test.
 - The generated PowerPC code is compiled into the native application; the guest-memory reservation is a separate requirement from executable JIT allocation. The current source audit has not yet established whether every runtime code-modification path is compatible with iOS code-signing and executable-memory restrictions.
 - The next memory gate is a minimal iOS-targeted reservation probe using the same address, size, Mach VM flags, and null-page guard, followed by a real device run. The probe must fail cleanly and report the Mach error instead of crashing during startup.
+
+
+## Guest-memory write tracking audit (2026-11-06)
+
+- After reserving the 4 GiB guest window, `mem::init()` calls `wwatch::init()`. The write tracker allocates per-host-page metadata, installs SIGSEGV/SIGBUS handlers, and changes guest pages between read-only and read-write with `mprotect`.
+- The tracker derives its page shift from `host::page_size()`, so it does not hard-code 4 KiB pages. This is useful for modern Apple devices, but the 16 KiB page-size path still needs an iOS compile/runtime test.
+- Its signal handler calls the write-fault path, which invokes `mprotect` from signal context and chains unhandled faults to the previously installed handlers. The ordering and handler interaction must be verified on iOS; do not assume macOS behavior proves iOS behavior.
+- The current startup order installs the main crash handler before guest-memory initialization, and the write tracker later saves/chains the prior SIGSEGV/SIGBUS handlers. This interaction is part of the iOS smoke-test gate.
+- A minimal iOS probe should test: fixed 4 GiB reservation, null-page protection, one write-watch arm/fault/unprotect cycle, and correct forwarding of an unrelated SIGSEGV/SIGBUS. If any step is unsupported or unstable, the app must disable write tracking safely or use a separately validated fallback before a full game build.
