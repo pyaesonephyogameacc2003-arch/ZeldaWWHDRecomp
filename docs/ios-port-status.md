@@ -99,3 +99,12 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - `runtime/src/platform/keycodes.h` previously selected Apple's Carbon header for every `__APPLE__` target.
 - Carbon is a macOS desktop API and is not an iOS dependency. The header now uses Carbon only for Apple non-iOS builds; iOS uses the existing portable physical-keycode constants already provided for non-Apple hosts.
 - This removes one known iOS SDK header-availability blocker for the SDL input source. It does not add touchscreen controls or establish that the full SDL input source compiles on iOS.
+
+## Build-input and iOS feasibility gate (2026-11-06)
+
+- The top-level CMake configure requires generated PowerPC sources matching `GEN_DIR` (default `build/gen`): at least one `code_*.c`, plus `table.c` and `imports.c`. A clean checkout without the user's own Wind Waker HD RPX/recompiler output cannot produce the gamecode target.
+- The repository tree does not contain the default generated `build/gen/code_*.c` output. A GitHub Actions workflow cannot create a playable game binary from this source tree alone; it needs user-supplied, legally obtained game input and a reproducible generation step or a separately supplied generated-code artifact.
+- The current iOS CMake target also builds the full project, including desktop-oriented test/tool targets later in the root CMake file. The iOS generator/build target selection must be checked so unrelated host test executables are not accidentally built for iPhoneOS.
+- The runtime's `PPC_MEM_BASE` is 32 TiB on Apple targets, while the code requests an exact 4 GiB fixed Mach VM allocation. This remains a hard runtime gate on iOS, not something that can be solved safely by changing the address based on guesswork.
+- Therefore no iOS IPA workflow has been added yet: a workflow that merely packages an empty app or skips the missing gamecode would create a misleading IPA artifact. The next legitimate build step requires a reproducible user-owned game-input handoff and an iOS-targeted compile/probe for Vulkan, fixed guest memory, and write tracking.
+
