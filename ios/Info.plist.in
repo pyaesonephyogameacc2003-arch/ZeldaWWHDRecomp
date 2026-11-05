@@ -9,7 +9,7 @@
   <key>CFBundleExecutable</key>
   <string>wwhd</string>
   <key>CFBundleIdentifier</key>
-  <string>${WWHD_IOS_BUNDLE_ID}</string>
+  <string>@WWHD_IOS_BUNDLE_ID@</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
