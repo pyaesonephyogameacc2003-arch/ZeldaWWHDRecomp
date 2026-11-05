@@ -5,6 +5,9 @@ project(wwhd_recomp C CXX)
 set(WWHD_IOS OFF)
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
   set(WWHD_IOS ON)
+  # The portable Vulkan host still uses a small Objective-C++ Foundation helper
+  # (platform/native.mm) for autorelease-pool boundaries on Apple platforms.
+  enable_language(OBJCXX)
 endif()
 # Renderers compiled into the executable:
 #   BOTH   (macOS default) Metal and Vulkan (MoltenVK) in one app; Graphics > Renderer picks one at start
@@ -56,6 +59,10 @@ endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
+if(WWHD_IOS)
+  set(CMAKE_OBJCXX_STANDARD 20)
+  set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
