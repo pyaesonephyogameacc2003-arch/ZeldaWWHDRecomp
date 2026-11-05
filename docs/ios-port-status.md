@@ -54,3 +54,7 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - `runtime/src/platform/host.h` uses Apple Mach-O executable symbols, Apple thread QoS, and Apple memory-residency APIs under the broad `__APPLE__` condition. These APIs need an iOS SDK compile check; their presence in an Apple build is not proof of iOS runtime compatibility.
 - The Vulkan CMake branch on Apple links `Vulkan::Vulkan` and glslang directly for the SDL host. An iOS toolchain still needs an iOS-built Vulkan loader/MoltenVK package and a valid CMake package config; the current repository dependency script does not produce that framework.
 - Guest-memory mapping and executable-memory/JIT behavior remain unverified. No claim is made that the runtime can execute on a non-jailbroken iPhone until those checks and an actual device test pass.
+
+- The SDL touch-controller bridge in `runtime/src/platform/touch_pad.cpp` and its Java view `android/.../TouchControls.java` are guarded by `__ANDROID__`; iOS currently has no equivalent on-screen controller. SDL touch-as-mouse events alone do not reproduce the Android virtual gamepad, context buttons, sticks, and touch gestures.
+- The editor MCP localhost server is desktop tooling and is now excluded from iOS runtime sources; its CMake option defaults OFF for iOS while retaining the existing ON default on other platforms.
+- This is a source-level change only. It does not establish that an iOS SDK compile, IPA package, or device launch succeeds.
