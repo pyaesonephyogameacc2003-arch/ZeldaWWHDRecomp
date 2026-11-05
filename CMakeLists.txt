@@ -206,8 +206,13 @@ file(GLOB RUNTIME_SOURCES CONFIGURE_DEPENDS runtime/src/*.cpp runtime/src/*.c ru
                                             runtime/src/overlay/*.cpp runtime/src/editor/*.cpp)
 # the world editor's MCP interface for Claude and other tool clients (runtime/src/editor/mcp.h): only in the
 # --editor launch mode of desktop builds, off until turned on in Settings -> Editor
-option(WWHD_EDITOR_MCP "world editor: the MCP interface for tool clients (localhost, token, off by default)" ON)
-if(NOT WWHD_EDITOR_MCP OR ANDROID)
+if(WWHD_IOS)
+  set(WWHD_EDITOR_MCP_DEFAULT OFF)
+else()
+  set(WWHD_EDITOR_MCP_DEFAULT ON)
+endif()
+option(WWHD_EDITOR_MCP "world editor: the MCP interface for tool clients (localhost, token, off by default)" ${WWHD_EDITOR_MCP_DEFAULT})
+if(NOT WWHD_EDITOR_MCP OR ANDROID OR WWHD_IOS)
   list(REMOVE_ITEM RUNTIME_SOURCES ${CMAKE_SOURCE_DIR}/runtime/src/editor/mcp.cpp ${CMAKE_SOURCE_DIR}/runtime/src/editor/mcp_server.cpp)
 endif()
 list(APPEND RUNTIME_SOURCES runtime/src/platform/perf_hint.cpp runtime/src/platform/thread_sampler.cpp)  # Android performance hints (no-op elsewhere)
