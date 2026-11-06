@@ -6,7 +6,7 @@ name: decomp
 
 on:
   push:
-    branches: ["**"]   # not on tag pushes
+    branches-ignore: [ios-port-exploration]   # not on tag pushes
   pull_request:
   workflow_dispatch:
 

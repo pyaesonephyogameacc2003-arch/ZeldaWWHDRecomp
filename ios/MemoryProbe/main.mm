@@ -1,6 +1,5 @@
 #import <UIKit/UIKit.h>
 #import <mach/mach.h>
-#import <mach/mach_vm.h>
 #import <signal.h>
 #import <sys/mman.h>
 #import <unistd.h>
@@ -61,15 +60,15 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
         return @"FAIL: invalid host page size";
     }
 
-    mach_vm_address_t address = 0x200000000000ULL;
-    kern_return_t allocation = mach_vm_allocate(mach_task_self(), &address, 0x100000000ULL, VM_FLAGS_FIXED);
+    vm_address_t address = 0x200000000000ULL;
+    kern_return_t allocation = vm_allocate(mach_task_self(), &address, 0x100000000ULL, VM_FLAGS_FIXED);
     if (allocation != KERN_SUCCESS || address != 0x200000000000ULL) {
         return [NSString stringWithFormat:@"FAIL: fixed 4 GiB reservation (Mach error %d)", allocation];
     }
     gGuestBase = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(address));
 
     if (mprotect(gGuestBase, gPageSize, PROT_NONE) != 0) {
-        mach_vm_deallocate(mach_task_self(), address, 0x100000000ULL);
+        vm_deallocate(mach_task_self(), address, 0x100000000ULL);
         gGuestBase = nullptr;
         return @"FAIL: null-page guard mprotect";
     }
@@ -80,7 +79,7 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
     sigemptyset(&action.sa_mask);
     struct sigaction oldBus = {}, oldSegv = {};
     if (sigaction(SIGBUS, &action, &oldBus) != 0 || sigaction(SIGSEGV, &action, &oldSegv) != 0) {
-        mach_vm_deallocate(mach_task_self(), address, 0x100000000ULL);
+        vm_deallocate(mach_task_self(), address, 0x100000000ULL);
         gGuestBase = nullptr;
         return @"FAIL: installing SIGBUS/SIGSEGV handlers";
     }
@@ -89,7 +88,7 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
     if (mprotect(watchedPage, gPageSize, PROT_READ) != 0) {
         sigaction(SIGBUS, &oldBus, nullptr);
         sigaction(SIGSEGV, &oldSegv, nullptr);
-        mach_vm_deallocate(mach_task_self(), address, 0x100000000ULL);
+        vm_deallocate(mach_task_self(), address, 0x100000000ULL);
         gGuestBase = nullptr;
         return @"FAIL: protecting watched page";
     }
@@ -100,7 +99,7 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
 
     sigaction(SIGBUS, &oldBus, nullptr);
     sigaction(SIGSEGV, &oldSegv, nullptr);
-    mach_vm_deallocate(mach_task_self(), address, 0x100000000ULL);
+    vm_deallocate(mach_task_self(), address, 0x100000000ULL);
     gGuestBase = nullptr;
 
     if (!writeTrackingPassed) return @"FAIL: protected-page write fault was not handled";
