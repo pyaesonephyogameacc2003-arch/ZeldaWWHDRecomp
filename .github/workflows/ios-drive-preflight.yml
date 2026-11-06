@@ -1,0 +1,57 @@
+name: iOS Drive Game Dump Preflight
+
+on:
+  push:
+    branches:
+      - ios-port-exploration
+    paths:
+      - .github/workflows/ios-drive-preflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-drive-archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Install download helper
+        run: python -m pip install --user --upgrade gdown
+      - name: Download user-provided archive
+        env:
+          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wwhd-input"
+          "$HOME/.local/bin/gdown" "https://drive.google.com/uc?id=$DRIVE_FILE_ID" --output "$RUNNER_TEMP/wwhd-input/game.zip"
+          test -s "$RUNNER_TEMP/wwhd-input/game.zip"
+          echo "Archive downloaded; size:"
+          du -h "$RUNNER_TEMP/wwhd-input/game.zip"
+      - name: Validate archive and inspect filenames only
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import zipfile, os, sys
+          p = os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "game.zip")
+          if not zipfile.is_zipfile(p):
+              print("ERROR: Downloaded file is not a valid ZIP archive.")
+              sys.exit(1)
+          with zipfile.ZipFile(p) as z:
+              bad = z.testzip()
+              if bad:
+                  print("ERROR: ZIP CRC failure:", bad)
+                  sys.exit(1)
+              infos = [i for i in z.infolist() if not i.is_dir()]
+              print("ZIP integrity: OK")
+              print("File count:", len(infos))
+              print("Uncompressed size (bytes):", sum(i.file_size for i in infos))
+              print("Potential RPX files:")
+              matches = [i.filename for i in infos if i.filename.lower().endswith(".rpx")]
+              print("\n".join(matches) if matches else "No .rpx file found by filename.")
+              print("Relevant file types:")
+              from collections import Counter
+              c = Counter(os.path.splitext(i.filename)[1].lower() or "[no extension]" for i in infos)
+              for ext, n in c.most_common(20):
+                  print(f"{ext}: {n}")
+          PY
