@@ -1,6 +1,12 @@
 name: iOS Simulator Memory Compatibility Probe
 
 on:
+  push:
+    branches:
+      - ios-port-exploration
+    paths:
+      - .github/workflows/ios-simulator-memory-probe.yml
+      - ios/MemoryProbe/**
   workflow_dispatch:
 
 permissions:
