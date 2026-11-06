@@ -54,7 +54,10 @@ jobs:
           set_target_properties(ios_sdk_smoke PROPERTIES
             MACOSX_BUNDLE_GUI_IDENTIFIER "org.wwhdrecomp.ios-smoke"
             XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
-            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+            XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
+            XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "")
           target_link_libraries(ios_sdk_smoke PRIVATE
             "-framework UIKit"
             "-framework Foundation"
@@ -72,14 +75,16 @@ jobs:
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
 
       - name: Build the iOS SDK smoke app
         run: |
           set -euo pipefail
-          cmake --build "$RUNNER_TEMP/ios-smoke-build" --config Release --target ios_sdk_smoke
+          cmake --build "$RUNNER_TEMP/ios-smoke-build" --config Release --target ios_sdk_smoke -- -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
           APP="$RUNNER_TEMP/ios-smoke-build/Release-iphoneos/ios_sdk_smoke.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
-          echo "PASS: Xcode + CMake can compile and link a minimal arm64 iOS app."
+          echo "PASS: Xcode + CMake can compile and link a minimal unsigned arm64 iOS app."
           echo "NOTE: This is a toolchain check only; it does not build Wind Waker HD or an IPA."
