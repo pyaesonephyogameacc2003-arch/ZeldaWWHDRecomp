@@ -1,0 +1,63 @@
+name: iOS Simulator Memory Compatibility Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-memory-probe:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build minimal iOS Simulator probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          mkdir -p "$RUNNER_TEMP/WWHDMemoryProbe.app"
+          xcrun --sdk iphonesimulator clang++ \
+            -target arm64-apple-ios15.0-simulator \
+            -isysroot "$SDK" -std=c++20 -fobjc-arc \
+            -framework UIKit -framework Foundation \
+            ios/MemoryProbe/main.mm \
+            -o "$RUNNER_TEMP/WWHDMemoryProbe.app/WWHDMemoryProbe"
+          cp ios/MemoryProbe/Info.plist "$RUNNER_TEMP/WWHDMemoryProbe.app/Info.plist"
+          file "$RUNNER_TEMP/WWHDMemoryProbe.app/WWHDMemoryProbe"
+
+      - name: Boot an available iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          UDID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); xs=[x for group in d["devices"].values() for x in group if x["isAvailable"] and x["name"].startswith("iPhone")]; print(xs[0]["udid"] if xs else "")')"
+          test -n "$UDID" || { echo "No available iPhone simulator runtime"; exit 1; }
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Install and launch memory probe
+        shell: bash
+        env:
+          SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          set -euo pipefail
+          xcrun simctl install "$SIMULATOR_UDID" "$RUNNER_TEMP/WWHDMemoryProbe.app"
+          xcrun simctl launch "$SIMULATOR_UDID" org.pyaesonephyogameacc2003.wwhd-memory-probe
+          sleep 5
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 2m --style compact --predicate 'eventMessage CONTAINS "WWHD_MEMORY_PROBE_RESULT"' | tee "$RUNNER_TEMP/probe.log"
+          grep -q "PASS: 4 GiB fixed reservation" "$RUNNER_TEMP/probe.log"
+          grep -q "PASS: null-page guard" "$RUNNER_TEMP/probe.log"
+          grep -q "PASS: protected-page write tracking" "$RUNNER_TEMP/probe.log"
+
+      - name: Upload probe log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwhd-ios-simulator-memory-probe
+          path: ${{ runner.temp }}/probe.log
+          if-no-files-found: ignore
