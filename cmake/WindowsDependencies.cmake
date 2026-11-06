@@ -8,7 +8,13 @@ if(POLICY CMP0135)
 endif()
 
 if(WWHD_HAS_VULKAN)
-  find_package(Vulkan 1.3 REQUIRED)
+  # iOS supplies Vulkan headers and the MoltenVK implementation as an imported target
+  # from cmake/IOSDependencies.cmake; FindVulkan cannot discover an iOS SDK package.
+  if(NOT WWHD_IOS)
+    find_package(Vulkan 1.3 REQUIRED)
+  elseif(NOT TARGET Vulkan::Vulkan)
+    message(FATAL_ERROR "iOS Vulkan target was not initialized before dependency setup")
+  endif()
   if(NOT WWHD_BUNDLED_DEPS)
     find_package(glslang CONFIG QUIET)
   endif()
