@@ -1,0 +1,66 @@
+name: iOS MoltenVK Dependency Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-moltenvk:
+    name: Build MoltenVK for iOS arm64
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout pinned MoltenVK source
+        uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/MoltenVK
+          ref: 5189f8de86ec365860f63bf1da736815cfaea5cd
+          path: MoltenVK
+
+      - name: Report Apple build tools
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version
+          python3 --version
+
+      - name: Fetch iOS dependency libraries
+        working-directory: MoltenVK
+        run: |
+          set -euo pipefail
+          ./fetchDependencies --ios
+
+      - name: Build iOS-only MoltenVK package
+        working-directory: MoltenVK
+        run: |
+          set -euo pipefail
+          xcodebuild build -quiet \
+            -project MoltenVKPackaging.xcodeproj \
+            -scheme "MoltenVK Package (iOS only)" \
+            -configuration Release
+
+      - name: Verify packaged iOS Vulkan framework
+        working-directory: MoltenVK
+        run: |
+          set -euo pipefail
+          test -d Package/Release
+          echo "Package contents:"
+          find Package/Release -maxdepth 7 \
+            \( -name 'MoltenVK.xcframework' -o -name 'MoltenVK.framework' \) -print
+          FRAMEWORK="$(find Package/Release -type d \
+            \( -name 'MoltenVK.xcframework' -o -name 'MoltenVK.framework' \) -print -quit)"
+          test -n "$FRAMEWORK"
+          echo "Found framework: $FRAMEWORK"
+          find "$FRAMEWORK" -type f -name MoltenVK -exec file {} \;
+          find "$FRAMEWORK" -type f -name MoltenVK -exec lipo -info {} \;
+
+      - name: Upload iOS-only MoltenVK package
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoltenVK-iOS-arm64
+          path: MoltenVK/Package/Release/
+          if-no-files-found: error
+          retention-days: 7
