@@ -20,7 +20,7 @@ jobs:
 
       - name: Download user-provided archive
         env:
-          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+          DRIVE_FILE_ID: 1zcfB6WMEFekvo5Pcg7P5pm4C67JpPF21
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/wwhd-input"
