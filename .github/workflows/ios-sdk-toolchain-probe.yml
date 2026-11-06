@@ -62,4 +62,5 @@ jobs:
           xcrun --sdk iphoneos lipo -info "$APP/ios_sdk_probe"
 
       - name: Confirm no game data is used
-        run: echo "PASS: this toolchain probe contains no game dump or generated game code."
+        run: |
+          echo "PASS: this toolchain probe contains no game dump or generated game code."
