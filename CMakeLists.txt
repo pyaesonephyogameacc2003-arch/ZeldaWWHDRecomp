@@ -9,6 +9,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
   # (platform/native.mm) for autorelease-pool boundaries on Apple platforms.
   enable_language(OBJCXX)
 endif()
+
+# iOS uses the static MoltenVK XCFramework built by the dedicated dependency workflow.
+# Keep the framework and headers outside the repository; they are supplied by the runner.
+if(WWHD_IOS)
+  include(cmake/IOSDependencies.cmake)
+endif()
 # Renderers compiled into the executable:
 #   BOTH   (macOS default) Metal and Vulkan (MoltenVK) in one app; Graphics > Renderer picks one at start
 #   METAL  Metal only (macOS)
@@ -267,7 +273,11 @@ if(WWHD_HAS_METAL)
   set_source_files_properties(${IMGUI_METAL} PROPERTIES COMPILE_FLAGS "-fobjc-arc -w")
 endif()
 if(WWHD_HAS_VULKAN)
-  find_package(Vulkan 1.3 REQUIRED)
+  if(NOT WWHD_IOS)
+    find_package(Vulkan 1.3 REQUIRED)
+  elseif(NOT TARGET Vulkan::Vulkan)
+    message(FATAL_ERROR "iOS Vulkan target is missing; set WWHD_IOS_MOLTENVK_XCFRAMEWORK and WWHD_IOS_MOLTENVK_INCLUDE_DIR")
+  endif()
   if(NOT TARGET glslang::glslang)
     find_package(glslang CONFIG REQUIRED)
   endif()
@@ -329,7 +339,7 @@ if(WWHD_IOS)
   target_link_libraries(wwhd PRIVATE
     "-framework UIKit" "-framework Foundation" "-framework QuartzCore"
     "-framework AVFoundation" "-framework AudioToolbox" "-framework GameController"
-    "-framework CoreGraphics" compression)
+    "-framework CoreGraphics" "-framework Metal" "-framework IOSurface" compression)
 endif()
 if(NOT TARGET ZLIB::ZLIB)
   find_package(ZLIB REQUIRED)
