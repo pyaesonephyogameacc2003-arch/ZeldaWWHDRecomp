@@ -108,3 +108,13 @@ Status: early platform groundwork; this branch does not yet contain an iOS app o
 - The runtime's `PPC_MEM_BASE` is 32 TiB on Apple targets, while the code requests an exact 4 GiB fixed Mach VM allocation. This remains a hard runtime gate on iOS, not something that can be solved safely by changing the address based on guesswork.
 - Therefore no iOS IPA workflow has been added yet: a workflow that merely packages an empty app or skips the missing gamecode would create a misleading IPA artifact. The next legitimate build step requires a reproducible user-owned game-input handoff and an iOS-targeted compile/probe for Vulkan, fixed guest memory, and write tracking.
 
+
+
+## MoltenVK CMake integration (2026-11-07)
+
+- A pinned iOS-only MoltenVK package build completed successfully on GitHub Actions (run 42298575799). The package contains dynamic and static iOS XCFrameworks; the app integration uses the static XCFramework to avoid runtime framework embedding.
+- Added `cmake/IOSDependencies.cmake`. It accepts the externally built static XCFramework and its public include directory, validates the iOS arm64 slice and Vulkan headers, and exposes an imported `Vulkan::Vulkan` target. No third-party framework binary or game data is committed.
+- Updated the iOS CMake path to use this imported target instead of FindVulkan, and added the Metal/IOSurface system frameworks required by MoltenVK.
+- Added the manually dispatched `iOS CMake Dependency Integration Probe` workflow on the default branch. It checks out this branch, rebuilds the pinned MoltenVK package, configures the iOS Xcode project with a temporary dummy gamecode fixture, and compiles dependency/shared-source targets only.
+- This probe is not a game build and does not create an IPA. It is intended to expose CMake, SDK, dependency, and shared-source compile errors before attempting the full runtime build.
+- Remaining gates: full runtime source compilation with the user's gamecode generated ephemerally in the same runner; SDL3 iOS Vulkan loader/surface behavior; touch controller UI; app lifecycle/audio; fixed 4 GiB guest-memory reservation and write tracking; JIT/code-signing compatibility; then actual iPhone device validation.
