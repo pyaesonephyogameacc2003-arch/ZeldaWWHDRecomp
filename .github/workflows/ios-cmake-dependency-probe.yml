@@ -47,13 +47,15 @@ jobs:
           set -euo pipefail
           XC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework"
           INC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include"
-          BIN="$XC/ios-arm64/MoltenVK.framework/MoltenVK"
+          BIN="$XC/ios-arm64/libMoltenVK.a"
+          echo "Static XCFramework contents:"
+          find "$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static" -maxdepth 5 -print
           test -s "$XC/Info.plist"
           test -s "$BIN"
           test -s "$INC/vulkan/vulkan.h"
           file "$BIN"
           lipo -info "$BIN"
-          echo "Static MoltenVK XCFramework and Vulkan headers are present."
+          echo "Static MoltenVK XCFramework archive and Vulkan headers are present."
 
       - name: Prepare non-gamecode CMake configure fixture
         run: |
