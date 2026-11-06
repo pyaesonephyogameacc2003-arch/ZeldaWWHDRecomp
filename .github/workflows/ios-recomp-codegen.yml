@@ -1,0 +1,84 @@
+name: iOS Recomp Code Generation Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-game-code:
+    name: Identify RPX and generate C source (ephemeral runner only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Google Drive downloader
+        run: python -m pip install --upgrade "gdown==6.5.1"
+
+      - name: Download user-provided archive
+        env:
+          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wwhd-input"
+          gdown --continue --retries 5 "https://drive.google.com/uc?id=$DRIVE_FILE_ID" \
+            --output "$RUNNER_TEMP/wwhd-input/game.zip"
+          test -s "$RUNNER_TEMP/wwhd-input/game.zip"
+          du -h "$RUNNER_TEMP/wwhd-input/game.zip"
+
+      - name: Extract only cking.rpx and verify known build
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, os, zipfile
+          archive = os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "game.zip")
+          expected_suffix = "/code/cking.rpx"
+          with zipfile.ZipFile(archive) as z:
+              matches = [n for n in z.namelist() if n.lower().endswith(expected_suffix)]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected exactly one {expected_suffix}; found {len(matches)}")
+              target = os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "cking.rpx")
+              with z.open(matches[0]) as src, open(target, "wb") as dst:
+                  while True:
+                      block = src.read(1024 * 1024)
+                      if not block:
+                          break
+                      dst.write(block)
+          h = hashlib.sha256()
+          with open(target, "rb") as f:
+              for block in iter(lambda: f.read(1024 * 1024), b""):
+                  h.update(block)
+          digest = h.hexdigest()
+          print("RPX path:", matches[0])
+          print("RPX size:", os.path.getsize(target))
+          print("RPX SHA-256:", digest)
+          print("Expected USA SHA-256: c4f0ab300542e0bfc462696850534e71db2ad02288a7eb55e5a4cd4062f16153")
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "rpx-path.txt"), "w") as f:
+              f.write(target)
+          PY
+
+      - name: Generate recompiled C sources
+        run: |
+          set -euo pipefail
+          RPX="$RUNNER_TEMP/wwhd-input/cking.rpx"
+          OUT="$RUNNER_TEMP/wwhd-generated-code"
+          python -u tools/recomp/recomp.py "$RPX" "$OUT"
+          test -s "$OUT/funcs.h"
+          test -s "$OUT/table.c"
+          test -s "$OUT/imports.c"
+          test -s "$OUT/report.txt"
+          CODE_COUNT="$(find "$OUT" -maxdepth 1 -type f -name 'code_*.c' | wc -l)"
+          test "$CODE_COUNT" -gt 0
+          echo "Generated code files: $CODE_COUNT"
+          echo "Generated output size:"
+          du -sh "$OUT"
+          echo "Recompiler report:"
+          cat "$OUT/report.txt"
+
+      - name: Confirm no game data or generated code is uploaded
+        run: |
+          echo "PASS: RPX and generated C files stayed on the ephemeral GitHub runner."
+          echo "No game dump, RPX, generated game code, or build artifact is uploaded."
