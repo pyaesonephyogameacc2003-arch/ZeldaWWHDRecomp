@@ -1,11 +1,6 @@
 name: iOS Drive Game Dump Preflight
 
 on:
-  push:
-    branches:
-      - ios-port-exploration
-    paths:
-      - .github/workflows/ios-drive-preflight.yml
   workflow_dispatch:
 
 permissions:
@@ -14,20 +9,117 @@ permissions:
 jobs:
   inspect-drive-archive:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
-      - name: Install download helper
-        run: python -m pip install --user --upgrade gdown
-      - name: Download user-provided archive
+      - name: Install parallel downloader and Google Drive helper
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y aria2
+          python -m pip install --upgrade "gdown==6.5.1"
+
+      - name: Resolve Google Drive download URL and test range support
+        env:
+          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import sys
+          import gdown.download as gd
+
+          file_id = os.environ["DRIVE_FILE_ID"]
+          user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+          try:
+              session, cookies_file = gd._get_session(
+                  proxy=None,
+                  use_cookies=True,
+                  user_agent=user_agent,
+                  cookies_file=None,
+              )
+              response = session.get(
+                  f"https://drive.google.com/uc?id={file_id}",
+                  stream=True,
+                  timeout=(20, 60),
+              )
+              if "Content-Disposition" not in response.headers:
+                  html = response.text
+                  response.close()
+                  resolved = gd.get_url_from_gdrive_confirmation(html)
+                  response = session.get(resolved, stream=True, timeout=(20, 60))
+              response.raise_for_status()
+              if "Content-Disposition" not in response.headers:
+                  raise RuntimeError("Google Drive did not return a direct file response")
+              download_url = response.url
+              response.close()
+              gd._save_cookies(cookies=session.cookies, cookies_file=cookies_file)
+
+              probe = session.get(
+                  download_url,
+                  headers={"Range": "bytes=0-0"},
+                  stream=True,
+                  timeout=(20, 60),
+              )
+              content_range = probe.headers.get("Content-Range", "")
+              supported = probe.status_code == 206 and content_range.startswith("bytes 0-0/")
+              probe.close()
+
+              if supported:
+                  url_file = os.path.join(os.environ["RUNNER_TEMP"], "drive-download-url.txt")
+                  with open(url_file, "w", encoding="utf-8") as f:
+                      f.write(download_url + "\n")
+                  print("Google Drive supports byte-range requests; parallel download can be attempted.")
+                  print(f"::add-mask::{download_url}")
+              else:
+                  print("Google Drive did not confirm byte-range support; will use the safe gdown fallback.")
+          except Exception as exc:
+              print(f"Could not prepare parallel download ({type(exc).__name__}); will use gdown fallback.")
+          PY
+
+      - name: Download archive (parallel first, resumable fallback)
         env:
           DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/wwhd-input"
-          "$HOME/.local/bin/gdown" "https://drive.google.com/uc?id=$DRIVE_FILE_ID" --output "$RUNNER_TEMP/wwhd-input/game.zip"
-          test -s "$RUNNER_TEMP/wwhd-input/game.zip"
+          OUT="$RUNNER_TEMP/wwhd-input/game.zip"
+          URL_FILE="$RUNNER_TEMP/drive-download-url.txt"
+
+          if [ -s "$URL_FILE" ]; then
+            echo "Trying 8 parallel connections..."
+            if aria2c \
+              --input-file="$URL_FILE" \
+              --dir="$RUNNER_TEMP/wwhd-input" \
+              --out="game.zip" \
+              --split=8 \
+              --max-connection-per-server=8 \
+              --min-split-size=1M \
+              --continue=true \
+              --allow-overwrite=true \
+              --auto-file-renaming=false \
+              --file-allocation=none \
+              --load-cookies="$HOME/.cache/gdown/cookies.txt" \
+              --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36" \
+              --max-tries=5 \
+              --retry-wait=5 \
+              --connect-timeout=30 \
+              --timeout=60 \
+              --summary-interval=10; then
+              echo "Parallel download completed."
+            else
+              echo "Parallel download was rejected or interrupted; falling back to gdown."
+              rm -f "$OUT" "$OUT.aria2"
+              gdown --continue --retries 5 "https://drive.google.com/uc?id=$DRIVE_FILE_ID" --output "$OUT"
+            fi
+          else
+            echo "Using resumable gdown fallback..."
+            gdown --continue --retries 5 "https://drive.google.com/uc?id=$DRIVE_FILE_ID" --output "$OUT"
+          fi
+
+          test -s "$OUT"
           echo "Archive downloaded; size:"
-          du -h "$RUNNER_TEMP/wwhd-input/game.zip"
+          du -h "$OUT"
+
       - name: Validate archive and inspect filenames only
         run: |
           set -euo pipefail
