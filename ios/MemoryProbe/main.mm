@@ -41,7 +41,6 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
     label.numberOfLines = 0;
     label.textAlignment = NSTextAlignmentCenter;
     label.text = @"Wind Waker HD\niOS memory compatibility probe…";
-    controller.view = controller.view;
     [controller.view addSubview:label];
     self.window.rootViewController = controller;
     [self.window makeKeyAndVisible];
