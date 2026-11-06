@@ -68,7 +68,7 @@ jobs:
       - name: Configure the iOS app project with the MoltenVK provider
         run: |
           set -euo pipefail
-          cmake -S . -B build/ios-probe -G Xcode \
+          cmake -S . -B build/ios-probe -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
