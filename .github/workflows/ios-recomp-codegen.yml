@@ -78,6 +78,24 @@ jobs:
           echo "Recompiler report:"
           cat "$OUT/report.txt"
 
+      - name: Compile generated C sources (host-side preflight)
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/wwhd-generated-code"
+          OBJ="$RUNNER_TEMP/wwhd-objects"
+          mkdir -p "$OBJ"
+          COUNT=0
+          while IFS= read -r -d '' SRC; do
+            NAME="$(basename "$SRC" .c)"
+            clang -std=c11 -O0 -fwrapv -fno-strict-aliasing -ffp-contract=off -w \
+              -Iruntime/include -I"$OUT" -c "$SRC" -o "$OBJ/$NAME.o"
+            COUNT=$((COUNT + 1))
+          done < <(find "$OUT" -maxdepth 1 -type f \
+            \( -name 'code_*.c' -o -name 'table.c' -o -name 'imports.c' \) -print0 | sort -z)
+          test "$COUNT" -ge 3
+          echo "Compiled generated C translation units: $COUNT"
+          du -sh "$OBJ"
+
       - name: Confirm no game data or generated code is uploaded
         run: |
           echo "PASS: RPX and generated C files stayed on the ephemeral GitHub runner."
