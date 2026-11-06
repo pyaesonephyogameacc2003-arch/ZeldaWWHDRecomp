@@ -35,7 +35,7 @@ static void probeSignalHandler(int signalNumber, siginfo_t *info, void *) {
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     UIViewController *controller = [UIViewController new];
     controller.view.backgroundColor = UIColor.systemBackgroundColor;
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectInset(controller.view.bounds, 20, 20)];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, 20, controller.view.bounds.size.width - 40, controller.view.bounds.size.height - 40)];
     label.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     label.numberOfLines = 0;
     label.textAlignment = NSTextAlignmentCenter;
