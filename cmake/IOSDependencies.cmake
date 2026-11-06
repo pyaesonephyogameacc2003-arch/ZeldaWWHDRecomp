@@ -17,15 +17,14 @@ if(NOT WWHD_IOS_MOLTENVK_INCLUDE_DIR)
   message(FATAL_ERROR "Set WWHD_IOS_MOLTENVK_INCLUDE_DIR to MoltenVK/Package/Release/MoltenVK/include")
 endif()
 
-set(_wwhd_moltenvk_framework
-    "${WWHD_IOS_MOLTENVK_XCFRAMEWORK}/ios-arm64/MoltenVK.framework")
-set(_wwhd_moltenvk_binary "${_wwhd_moltenvk_framework}/MoltenVK")
+# The static iOS slice is a plain archive (libMoltenVK.a), not a .framework.
+set(_wwhd_moltenvk_binary "${WWHD_IOS_MOLTENVK_XCFRAMEWORK}/ios-arm64/libMoltenVK.a")
 
 if(NOT EXISTS "${WWHD_IOS_MOLTENVK_XCFRAMEWORK}/Info.plist")
   message(FATAL_ERROR "Not an XCFramework: ${WWHD_IOS_MOLTENVK_XCFRAMEWORK}")
 endif()
 if(NOT EXISTS "${_wwhd_moltenvk_binary}")
-  message(FATAL_ERROR "Missing iOS arm64 MoltenVK binary: ${_wwhd_moltenvk_binary}")
+  message(FATAL_ERROR "Missing iOS arm64 static MoltenVK archive: ${_wwhd_moltenvk_binary}")
 endif()
 if(NOT EXISTS "${WWHD_IOS_MOLTENVK_INCLUDE_DIR}/vulkan/vulkan.h")
   message(FATAL_ERROR "MoltenVK Vulkan headers not found under ${WWHD_IOS_MOLTENVK_INCLUDE_DIR}")
