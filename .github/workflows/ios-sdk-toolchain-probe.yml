@@ -1,0 +1,65 @@
+name: iOS SDK Toolchain Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  iphoneos-sdk-probe:
+    name: Verify Xcode iOS arm64 toolchain
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Report Xcode and iOS SDK
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --find clang
+          cmake --version
+
+      - name: Compile a minimal unsigned iOS app with CMake and Xcode
+        run: |
+          set -euo pipefail
+          PROBE="$RUNNER_TEMP/ios-sdk-probe"
+          mkdir -p "$PROBE/src"
+          cat > "$PROBE/CMakeLists.txt" <<'CMAKE'
+          cmake_minimum_required(VERSION 3.25)
+          project(WWHD_iOS_SDK_Probe LANGUAGES C OBJC)
+          set(CMAKE_OSX_SYSROOT iphoneos)
+          set(CMAKE_OSX_ARCHITECTURES arm64)
+          set(CMAKE_OSX_DEPLOYMENT_TARGET 15.0)
+          add_executable(ios_sdk_probe MACOSX_BUNDLE src/main.m)
+          target_link_libraries(ios_sdk_probe PRIVATE "-framework UIKit" "-framework Foundation")
+          set_target_properties(ios_sdk_probe PROPERTIES
+            MACOSX_BUNDLE_GUI_IDENTIFIER "org.wwhdrecomp.ios.probe"
+            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+          CMAKE
+          cat > "$PROBE/src/main.m" <<'OBJC'
+          #import <UIKit/UIKit.h>
+          int main(int argc, char *argv[]) {
+              @autoreleasepool {
+                  return UIApplicationMain(argc, argv, nil, nil);
+              }
+          }
+          OBJC
+          cmake -S "$PROBE" -B "$PROBE/build" -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+          cmake --build "$PROBE/build" --config Release -- -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+          APP="$PROBE/build/Release-iphoneos/ios_sdk_probe.app"
+          test -d "$APP"
+          file "$APP/ios_sdk_probe"
+          xcrun --sdk iphoneos lipo -info "$APP/ios_sdk_probe"
+
+      - name: Confirm no game data is used
+        run: echo "PASS: this toolchain probe contains no game dump or generated game code."
