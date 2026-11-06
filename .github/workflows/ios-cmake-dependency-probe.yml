@@ -1,0 +1,91 @@
+name: iOS CMake Dependency Integration Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure-ios-dependencies:
+    name: Configure and compile iOS dependency targets
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout iOS port branch
+        uses: actions/checkout@v4
+        with:
+          ref: ios-port-exploration
+
+      - name: Checkout pinned MoltenVK source
+        uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/MoltenVK
+          ref: 5189f8de86ec365860f63bf1da736815cfaea5cd
+          path: MoltenVK
+
+      - name: Report Apple build tools
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version
+          python3 --version
+
+      - name: Build MoltenVK and its iOS dependencies
+        working-directory: MoltenVK
+        run: |
+          set -euo pipefail
+          ./fetchDependencies --ios
+          xcodebuild build -quiet \
+            -project MoltenVKPackaging.xcodeproj \
+            -scheme "MoltenVK Package (iOS only)" \
+            -configuration Release
+
+      - name: Verify static MoltenVK device slice and headers
+        run: |
+          set -euo pipefail
+          XC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework"
+          INC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include"
+          BIN="$XC/ios-arm64/MoltenVK.framework/MoltenVK"
+          test -s "$XC/Info.plist"
+          test -s "$BIN"
+          test -s "$INC/vulkan/vulkan.h"
+          file "$BIN"
+          lipo -info "$BIN"
+          echo "Static MoltenVK XCFramework and Vulkan headers are present."
+
+      - name: Prepare non-gamecode CMake configure fixture
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wwhd-generated-probe"
+          printf 'int wwhd_ios_codegen_probe(void) { return 0; }\n' > "$RUNNER_TEMP/wwhd-generated-probe/code_probe.c"
+          printf '#include <stdint.h>\n' > "$RUNNER_TEMP/wwhd-generated-probe/table.c"
+          printf '#include <stdint.h>\n' > "$RUNNER_TEMP/wwhd-generated-probe/imports.c"
+
+      - name: Configure the iOS app project with the MoltenVK provider
+        run: |
+          set -euo pipefail
+          cmake -S . -B build/ios-probe -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DGEN_DIR="$RUNNER_TEMP/wwhd-generated-probe" \
+            -DWWHD_BUNDLED_DEPS=ON \
+            -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
+            -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+
+      - name: Compile iOS dependency and shared-source targets
+        run: |
+          set -euo pipefail
+          for target in SDL3-static glslang SPIRV zlibstatic imgui cemu_latte gamecode; do
+            echo "=== Building $target ==="
+            cmake --build build/ios-probe --config Release --target "$target" --parallel 4
+          done
+
+      - name: Confirm probe used no game dump
+        run: |
+          echo "PASS: this probe used only a temporary dummy gamecode fixture."
+          echo "No Nintendo game data, generated game code, or IPA was uploaded."
