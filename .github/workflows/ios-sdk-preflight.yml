@@ -1,0 +1,85 @@
+name: iOS SDK and CMake Toolchain Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ios-port-exploration
+    paths:
+      - .github/workflows/ios-sdk-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  ios-sdk-preflight:
+    name: iOS arm64 SDK smoke build (not the game)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Report Apple toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --find clang++
+          cmake --version
+
+      - name: Create minimal UIKit and Metal app fixture
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ios-smoke"
+          cat > "$RUNNER_TEMP/ios-smoke/main.mm" <<'EOF'
+          #import <UIKit/UIKit.h>
+          #import <Metal/Metal.h>
+          #import <QuartzCore/QuartzCore.h>
+          #import <AVFoundation/AVFoundation.h>
+          #import <AudioToolbox/AudioToolbox.h>
+          #import <GameController/GameController.h>
+          int main(int argc, char **argv) {
+              @autoreleasepool {
+                  id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+                  return device == nil ? 1 : 0;
+              }
+          }
+          EOF
+          cat > "$RUNNER_TEMP/ios-smoke/CMakeLists.txt" <<'EOF'
+          cmake_minimum_required(VERSION 3.20)
+          project(ios_sdk_smoke LANGUAGES C CXX OBJCXX)
+          add_executable(ios_sdk_smoke MACOSX_BUNDLE main.mm)
+          set_target_properties(ios_sdk_smoke PROPERTIES
+            MACOSX_BUNDLE_GUI_IDENTIFIER "org.wwhdrecomp.ios-smoke"
+            XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+          target_link_libraries(ios_sdk_smoke PRIVATE
+            "-framework UIKit"
+            "-framework Foundation"
+            "-framework Metal"
+            "-framework QuartzCore"
+            "-framework AVFoundation"
+            "-framework AudioToolbox"
+            "-framework GameController")
+          EOF
+
+      - name: Configure an arm64 iOS app with CMake
+        run: |
+          set -euo pipefail
+          cmake -S "$RUNNER_TEMP/ios-smoke" -B "$RUNNER_TEMP/ios-smoke-build" -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+
+      - name: Build the iOS SDK smoke app
+        run: |
+          set -euo pipefail
+          cmake --build "$RUNNER_TEMP/ios-smoke-build" --config Release --target ios_sdk_smoke
+          APP="$RUNNER_TEMP/ios-smoke-build/Release-iphoneos/ios_sdk_smoke.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          echo "PASS: Xcode + CMake can compile and link a minimal arm64 iOS app."
+          echo "NOTE: This is a toolchain check only; it does not build Wind Waker HD or an IPA."
