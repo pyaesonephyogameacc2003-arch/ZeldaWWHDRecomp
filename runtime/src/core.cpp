@@ -1,6 +1,6 @@
 #include "crash_memory.h"
 // Guest memory, RPX loading, function dispatch, logging and HLE registry.
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 #include <mach-o/ldsyms.h>
@@ -100,7 +100,7 @@ namespace mem {
 static std::atomic<uint32_t> g_runtime_top{kRuntimeStart};
 
 void init() {
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
     mach_vm_address_t addr = (mach_vm_address_t)PPC_MEM_BASE;
     kern_return_t kr = mach_vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_FIXED);
     if (kr != KERN_SUCCESS) fatal("cannot reserve guest address space at %p (kr=%d)", PPC_MEM_BASE, kr);
