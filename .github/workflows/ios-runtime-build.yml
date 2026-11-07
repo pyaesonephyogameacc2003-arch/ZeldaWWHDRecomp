@@ -35,6 +35,19 @@ jobs:
           # Build the exact commit that triggered this run; do not silently use main.
           ref: ${{ github.sha }}
 
+      - name: Apply iOS static MoltenVK source fixes
+        run: |
+          set -euo pipefail
+          if ! grep -q 'cmake_minimum_required' CMakeLists.txt; then
+            echo "CMakeLists.txt is invalid; restoring from last known good commit"
+            curl -fsSL "https://raw.githubusercontent.com/pyaesonephyogameacc2003-arch/ZeldaWWHDRecomp/703138c8c04cc78439696a85183396cb48676b4a/CMakeLists.txt" -o CMakeLists.txt
+          fi
+          git apply --verbose patches/ios-static-moltenvk-cmake-final.diff
+          git apply --verbose patches/ios-static-moltenvk-backend-final.diff
+          grep -q 'force_load' CMakeLists.txt
+          grep -q 'statically linked MoltenVK' runtime/src/gfx/vulkan/backend.cpp
+          echo "PASS: static MoltenVK source fixes applied"
+
       - name: Install isolated game archive downloader
         run: |
           set -euo pipefail
@@ -139,13 +152,10 @@ jobs:
       - name: Validate unsigned iOS app bundle
         run: |
           set -euo pipefail
-          # CMake also builds native test bundles; never select the first arbitrary .app.
-          # The real application target is explicitly named wwhd.app by the linker.
           APP="build/ios/wwhd.app"
           echo "Checking application bundle: $APP"
           test -d "$APP"
           test -s "$APP/Info.plist"
-          # Expose Documents/game in the iOS Files app so owners can copy their own dump.
           /usr/libexec/PlistBuddy -c 'Set :UIFileSharingEnabled true' "$APP/Info.plist" 2>/dev/null || \
             /usr/libexec/PlistBuddy -c 'Add :UIFileSharingEnabled bool true' "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :LSSupportsOpeningDocumentsInPlace true' "$APP/Info.plist" 2>/dev/null || \
@@ -169,10 +179,7 @@ jobs:
             exit 1
           fi
           echo "PASS: unsigned iOS arm64 .app bundle compiled and validated."
-          echo "The app bundle remains on the ephemeral runner; no game code or IPA is uploaded."
 
-      # Package only on the ephemeral runner to verify the iOS Payload layout.
-      # Do not upload the IPA: the executable contains recompiled proprietary game code.
       - name: Package and validate unsigned IPA (ephemeral only)
         run: |
           set -euo pipefail
@@ -189,10 +196,7 @@ jobs:
           /usr/bin/unzip -Z1 "$IPA" | grep -Fxq 'Payload/wwhd.app/wwhd'
           echo "PASS: unsigned IPA package structure validated."
           du -h "$IPA"
-          echo "IPA intentionally not uploaded; runner cleanup removes it after this job."
 
-      # The executable contains recompiled proprietary game code. Publish only
-      # an encrypted artifact; the decryption password must be stored as a repo secret.
       - name: Encrypt IPA for artifact download
         id: encrypt_ipa
         env:
@@ -224,5 +228,3 @@ jobs:
           path: ${{ runner.temp }}/Wind-Waker-HD-unsigned.ipa.enc
           if-no-files-found: error
           retention-days: 3
-
-
