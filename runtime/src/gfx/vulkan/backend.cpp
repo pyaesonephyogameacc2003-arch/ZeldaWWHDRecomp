@@ -5474,7 +5474,7 @@ static bool gamepad_touch(const SDL_Event& event) {
 #if defined(__APPLE__)
   if ((event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
        event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED) &&
-      event.tfinger.windowID == tvId && touch_pad::handle_event(event)) return true;
+      event.tfinger.windowID == tvId && !overlay::captures() && touch_pad::handle_event(event)) return true;
 #endif
 #ifdef __ANDROID__
   if (android_display_touch_event(event)) return true;
@@ -5574,6 +5574,7 @@ static bool gamepad_touch(const SDL_Event& event) {
     return true;
   }
   case SDL_EVENT_WINDOW_FOCUS_LOST:
+    touch_pad::reset();
     if (touchHeld == TouchIn::TvPicture) tv_pointer::set(false, 0, 0, 16.0f / 9.0f);
     else if (touchHeld != TouchIn::None) input::set_touch(false, 0, 0);
     touchHeld = TouchIn::None;
