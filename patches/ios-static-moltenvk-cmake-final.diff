@@ -1,0 +1,50 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,10 +1,14 @@
+ cmake_minimum_required(VERSION 3.20)
+ project(wwhd_recomp C CXX)
+ 
+-# CMake must enable Objective-C++ before any dependency targets are created: bundled
+-# Apple dependencies may contain .mm sources even when the app uses the Vulkan renderer.
++# iOS uses the portable SDL3 host and Vulkan through static MoltenVK.
++set(WWHD_IOS OFF)
+ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
++  set(WWHD_IOS ON)
+   enable_language(OBJCXX)
++endif()
++if(WWHD_IOS)
++  include(cmake/IOSDependencies.cmake)
+ endif()
+ # Renderers compiled into the executable:
+ #   BOTH   (macOS default) Metal and Vulkan (MoltenVK) in one app; Graphics > Renderer picks one at start
+@@ -262,7 +266,11 @@
+   set_source_files_properties(${IMGUI_METAL} PROPERTIES COMPILE_FLAGS "-fobjc-arc -w")
+ endif()
+ if(WWHD_HAS_VULKAN)
+-  find_package(Vulkan 1.3 REQUIRED)
++  if(NOT WWHD_IOS)
++    find_package(Vulkan 1.3 REQUIRED)
++  elseif(NOT TARGET Vulkan::Vulkan)
++    message(FATAL_ERROR "iOS Vulkan target is missing; set WWHD_IOS_MOLTENVK_XCFRAMEWORK and WWHD_IOS_MOLTENVK_INCLUDE_DIR")
++  endif()
+   if(NOT TARGET glslang::glslang)
+     find_package(glslang CONFIG REQUIRED)
+   endif()
+@@ -387,8 +395,15 @@
+       target_link_libraries(wwhd PRIVATE glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
+     endif()
+   elseif(APPLE)
+-    # SDL host on a Mac: Homebrew's loader is linked; SDL and the renderer find it in the process
+-    target_link_libraries(wwhd PRIVATE Vulkan::Vulkan glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
++    # SDL host on a Mac: Homebrew's loader is linked; SDL and the renderer find it in the process.
++    # iOS links static MoltenVK: force_load so the archive is retained under VK_NO_PROTOTYPES.
++    if(WWHD_IOS)
++      target_link_options(wwhd PRIVATE "LINKER:-force_load,$<TARGET_FILE:Vulkan::Vulkan>")
++      target_link_libraries(wwhd PRIVATE glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
++      target_include_directories(wwhd SYSTEM PRIVATE $<TARGET_PROPERTY:Vulkan::Vulkan,INTERFACE_INCLUDE_DIRECTORIES>)
++    else()
++      target_link_libraries(wwhd PRIVATE Vulkan::Vulkan glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
++    endif()
+   else()
+     # Windows, Linux, Android: SDL loads the Vulkan loader at run time (SDL_Vulkan_LoadLibrary);
+     # only its headers are used here

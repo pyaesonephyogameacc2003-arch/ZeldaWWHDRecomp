@@ -1,0 +1,114 @@
+--- a/runtime/src/gfx/vulkan/backend.cpp
++++ b/runtime/src/gfx/vulkan/backend.cpp
+@@ -16,8 +16,8 @@
+ #else
+ #define WWHD_CREATE_WINDOW_SURFACE drivers::create_surface
+ #endif
+-#if defined(__APPLE__) && !defined(WWHD_SDL_HOST)
+-#define VK_USE_PLATFORM_METAL_EXT  // VK_EXT_metal_surface: AppKit views' CAMetalLayers
++#if defined(__APPLE__) && (!defined(WWHD_SDL_HOST) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
++#define VK_USE_PLATFORM_METAL_EXT  // VK_EXT_metal_surface: AppKit/UIKit CAMetalLayers
+ #endif
+ #include "../../exception_report.h"
+ #include "platform/present_observer.h"
+@@ -80,6 +80,10 @@
+ #include "platform/input_sdl.h"
+ #include "overlay/window_target.h"
+ #include <SDL3/SDL_vulkan.h>
++#endif
++#if defined(__APPLE__) && defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++#include <dlfcn.h>
++#include <SDL3/SDL_metal.h>
+ #endif
+ #include "platform/display_rate.h"
+ #include "platform/gaming_mode.h"
+@@ -5100,15 +5104,30 @@
+ #endif
+   // the Vulkan loader (vulkan-1.dll, libvulkan.so.1), loaded here rather than imported (loader.h); the
+   // windows below use the same one
++  PFN_vkGetInstanceProcAddr gipa = nullptr;
++#if defined(__APPLE__) && defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++  // iOS builds link static MoltenVK (cmake/IOSDependencies.cmake). There is no separate
++  // libvulkan / MoltenVK dylib for SDL to dlopen. Take the address of the linked symbol so the
++  // static archive is retained despite VK_NO_PROTOTYPES (all other entry points are loaded
++  // through this one).
++  extern "C" PFN_vkVoidFunction vkGetInstanceProcAddr(VkInstance instance, const char *name);
++  gipa = vkGetInstanceProcAddr;
++  if (!gipa)
++    exception_report::raise(
++        "Static MoltenVK is linked into this iOS build, but vkGetInstanceProcAddr is null. "
++        "Rebuild with WWHD_IOS_MOLTENVK_XCFRAMEWORK pointing at the static MoltenVK.xcframework.");
++  LOG("[vulkan] iOS: statically linked MoltenVK");
++#else
+   if (!SDL_Vulkan_LoadLibrary(nullptr))
+     exception_report::raise(std::string("Vulkan is not installed on this computer: the Vulkan runtime "
+ #ifdef _WIN32
+                                          "(vulkan-1.dll) "
+ #endif
+                                          "could not be loaded (") + SDL_GetError() + ").\n\n" + kUpdateDriver);
+-  auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
++  gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
+ #ifdef __ANDROID__
+   if (auto custom = drivers::open_custom()) gipa = custom;
++#endif
+ #endif
+   load_global_functions(gipa);
+ #ifdef __ANDROID__
+@@ -5148,10 +5167,6 @@
+   if (!gfx::hidden::mode().presents())
+     R.tv.visible = R.drc.visible = false;  // no drawables: pictures only reach frame / present dumps
+   set_window_icons();
+-  uint32_t n;
+-  const char *const *se = SDL_Vulkan_GetInstanceExtensions(&n);
+-  if (!se)
+-    exception_report::raise(SDL_GetError());
+   for (Screen *s : {&R.tv, &R.drc})
+     if (s->window) {
+       int width = 0, height = 0;
+@@ -5160,6 +5175,38 @@
+       s->width = width;
+       s->height = height;
+     }
++#if defined(__APPLE__) && defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++  // SDL_Vulkan_GetInstanceExtensions / CreateSurface need a prior SDL_Vulkan_LoadLibrary,
++  // which is unavailable with static MoltenVK. Use the Metal surface extension instead.
++  std::vector<const char *> iosExtensions = {
++      VK_KHR_SURFACE_EXTENSION_NAME,
++      VK_EXT_METAL_SURFACE_EXTENSION_NAME,
++  };
++  init_device(iosExtensions, [] {
++    auto create = (PFN_vkCreateMetalSurfaceEXT)vkGetInstanceProcAddr(
++        R.instance, "vkCreateMetalSurfaceEXT");
++    if (!create)
++      exception_report::raise("vkCreateMetalSurfaceEXT unavailable (static MoltenVK)");
++    for (Screen *s : {&R.tv, &R.drc}) {
++      if (!s->window)
++        continue;
++      SDL_MetalView metalView = SDL_Metal_CreateView(static_cast<SDL_Window *>(s->window));
++      if (!metalView)
++        exception_report::raise(std::string("SDL_Metal_CreateView failed: ") + SDL_GetError());
++      void *layer = SDL_Metal_GetLayer(metalView);
++      if (!layer)
++        exception_report::raise("SDL_Metal_GetLayer returned null");
++      VkMetalSurfaceCreateInfoEXT ci{VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT};
++      ci.pLayer = layer;
++      vk_check(create(R.instance, &ci, nullptr, &s->surface), "create Metal surface");
++    }
++    LOG("[vulkan] iOS: presenting through VK_EXT_metal_surface");
++  });
++#else
++  uint32_t n;
++  const char *const *se = SDL_Vulkan_GetInstanceExtensions(&n);
++  if (!se)
++    exception_report::raise(SDL_GetError());
+   init_device(std::vector<const char *>(se, se + n), [] {
+     if (!WWHD_CREATE_WINDOW_SURFACE(R.tv.window, R.instance, nullptr,
+                                   &R.tv.surface))
+@@ -5168,6 +5215,7 @@
+                                                   nullptr, &R.drc.surface))
+       exception_report::raise(SDL_GetError());
+   });
++#endif
+   mods::mouse_init(R.tv.window);
+   input::set_prompt_window(R.tv.window);
+   input::set_gamepad_window(R.drc.window);
