@@ -71,6 +71,7 @@ namespace interp { void set_mode(int); }
 #include <TargetConditionals.h>
 #if TARGET_OS_IPHONE
 #include <SDL3/SDL_main.h>  // SDL's UIKit entry point calls SDL_main
+extern "C" void wwhd_ios_prepare_paths();
 #endif
 #endif
 
@@ -438,6 +439,9 @@ static void enter_data_folder(int argc, char** argv) {
 extern "C" void synthetic_game_frame(Cpu*, PpcFunc);
 
 int main(int argc, char** argv) {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    wwhd_ios_prepare_paths();  // game/, save/, and captures/ live in the app's Documents folder
+#endif
     enter_data_folder(argc, argv);  // before anything reads a relative path
     std::string shader_prebuild_root;
     // Android's isolated preparation activity and normal SDL startup share the
