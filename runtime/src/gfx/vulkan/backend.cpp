@@ -2,6 +2,7 @@
 #include "vertex_cpu_policy.h"
 #include "dynres.h"
 #include "platform/keycodes.h"
+#include "../../platform/touch_pad.h"
 #include "input_map.h"
 #include "atomic_temporary.h"
 #include "validation_diagnostics.h"
@@ -5470,6 +5471,11 @@ static bool gamepad_touch(const SDL_Event& event) {
   const SDL_WindowID drcId = R.drc.window ? SDL_GetWindowID(R.drc.window) : 0;
   const SDL_WindowID tvId = SDL_GetWindowID(R.tv.window);
   float tx = 0, ty = 0;
+#if defined(__APPLE__)
+  if ((event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
+       event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED) &&
+      event.tfinger.windowID == tvId && touch_pad::handle_event(event)) return true;
+#endif
 #ifdef __ANDROID__
   if (android_display_touch_event(event)) return true;
   // the mouse events SDL makes from fingers: those on the GamePad picture or the button are the
