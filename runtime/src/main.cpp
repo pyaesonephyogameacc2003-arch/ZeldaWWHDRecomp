@@ -67,6 +67,11 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>  // main() becomes SDL_main, called by SDLActivity
 namespace interp { void set_mode(int); }
+#elif defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include <SDL3/SDL_main.h>  // SDL's UIKit entry point calls SDL_main
+#endif
 #endif
 
 #ifdef WWHD_HAS_VULKAN
