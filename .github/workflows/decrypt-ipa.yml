@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ipa"
-          gdown --fuzzy --continue --retries 5 "https://drive.google.com/file/d/$DRIVE_FILE_ID/view" \
+          gdown --continue --retries 5 "https://drive.google.com/uc?id=$DRIVE_FILE_ID" \
             --output "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
           test -s "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
           file "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
