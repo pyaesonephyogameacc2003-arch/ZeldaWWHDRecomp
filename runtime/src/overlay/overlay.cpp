@@ -3,6 +3,7 @@
 #include "controls_options.h"
 #include "gfx/display_modes.h"
 #include "platform/touch_options.h"
+#include "../platform/touch_pad.h"
 #include <mutex>
 // In-game settings overlay: the Dear ImGui user interface (see overlay.h). The renderers draw the
 // resulting ImDrawData (gfx/overlay_metal.mm, gfx/vulkan/overlay.cpp); the hosts feed input and apply
@@ -3532,7 +3533,7 @@ ImDrawData* frame(float pw, float ph, void (*renderer_init)()) {
     // a mod install keeps running (and shows its progress) while the menu is closed
     const bool mods_busy = !setup_run.id.empty() || (U.init && modsui::wants_background()) || modsui::startup_notice_pending();
     if (!open) gfx::g_pip_preview=false;
-    if (!open && !perf && !text && toast.empty() && !guesthud::active() && !file_select_quit::visible() && !mods_busy && !stereoPointer && drawn_layers.empty()) {
+    if (!open && !perf && !text && toast.empty() && !guesthud::active() && !file_select_quit::visible() && !mods_busy && !stereoPointer && drawn_layers.empty() && !touch_pad::enabled()) {
         if (U.init) {  // forget events and pressed keys while nothing is shown
             std::lock_guard<std::mutex> lk(g_mu);
             g_events.clear();
@@ -3664,6 +3665,7 @@ ImDrawData* frame(float pw, float ph, void (*renderer_init)()) {
         }
         last = std::move(now);
     }
+    if (!open && !text) touch_pad::draw_overlay();
     ImGui::Render();
     overlay_trace::state();
     return ImGui::GetDrawData();
