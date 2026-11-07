@@ -15,7 +15,7 @@ jobs:
       - name: Checkout iOS port branch
         uses: actions/checkout@v4
         with:
-          ref: ios-port-exploration
+          ref: main
 
       - name: Checkout pinned MoltenVK source
         uses: actions/checkout@v4
