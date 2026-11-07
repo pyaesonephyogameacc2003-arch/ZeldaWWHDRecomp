@@ -1,0 +1,51 @@
+name: Decrypt Wind Waker HD IPA artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  decrypt:
+    name: Decrypt encrypted IPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download encrypted IPA from successful build
+        uses: actions/download-artifact@v4
+        with:
+          name: Wind-Waker-HD-iOS-encrypted-IPA
+          path: encrypted
+          repository: pyaesonephyogameacc2003-arch/ZeldaWWHDRecomp
+          run-id: 42413548636
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decrypt with the build's original OpenSSL settings
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$IPA_ARTIFACT_PASSWORD" || { echo "Missing Actions secret IPA_ARTIFACT_PASSWORD"; exit 1; }
+          INPUT="$(find encrypted -type f -name '*.ipa.enc' -print -quit)"
+          test -n "$INPUT" || { echo "Encrypted IPA file not found in downloaded artifact"; find encrypted -maxdepth 3 -type f -ls; exit 1; }
+          mkdir -p output
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$INPUT" \
+            -out output/Wind-Waker-HD-unsigned.ipa \
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s output/Wind-Waker-HD-unsigned.ipa
+          unzip -t output/Wind-Waker-HD-unsigned.ipa
+          unzip -Z1 output/Wind-Waker-HD-unsigned.ipa | grep -Fxq 'Payload/wwhd.app/Info.plist'
+          unzip -Z1 output/Wind-Waker-HD-unsigned.ipa | grep -Fxq 'Payload/wwhd.app/wwhd'
+          echo "PASS: decrypted IPA ZIP structure verified."
+          ls -lh output/Wind-Waker-HD-unsigned.ipa
+
+      - name: Upload decrypted IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wind-Waker-HD-iOS-decrypted-IPA
+          path: output/Wind-Waker-HD-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 3
