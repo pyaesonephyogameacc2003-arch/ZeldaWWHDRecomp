@@ -133,9 +133,11 @@ jobs:
       - name: Validate unsigned iOS app bundle
         run: |
           set -euo pipefail
-          APP="$(find build/ios -maxdepth 3 -type d -name '*.app' -print -quit)"
-          echo "Detected app bundle: $APP"
-          test -n "$APP"
+          # CMake also builds native test bundles; never select the first arbitrary .app.
+          # The real application target is explicitly named wwhd.app by the linker.
+          APP="build/ios/wwhd.app"
+          echo "Checking application bundle: $APP"
+          test -d "$APP"
           test -s "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist"
           EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
