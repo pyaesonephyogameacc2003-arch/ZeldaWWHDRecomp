@@ -200,6 +200,11 @@ endif()
 # strong HLE definitions replace the generated weak import stubs.
 file(GLOB RUNTIME_SOURCES CONFIGURE_DEPENDS runtime/src/*.cpp runtime/src/*.c runtime/src/hle/*.cpp runtime/src/mods/*.cpp runtime/src/motion/*.cpp
                                             runtime/src/overlay/*.cpp runtime/src/editor/*.cpp)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  enable_language(OBJCXX)
+  list(APPEND RUNTIME_SOURCES runtime/src/platform/ios_host.mm)
+  set_source_files_properties(runtime/src/platform/ios_host.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
 # the world editor's MCP interface for Claude and other tool clients (runtime/src/editor/mcp.h): only in the
 # --editor launch mode of desktop builds, off until turned on in Settings -> Editor
 option(WWHD_EDITOR_MCP "world editor: the MCP interface for tool clients (localhost, token, off by default)" ON)
