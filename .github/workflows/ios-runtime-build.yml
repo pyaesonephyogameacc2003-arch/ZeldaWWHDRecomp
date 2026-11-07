@@ -10,6 +10,7 @@ on:
       - 'runtime/src/core.cpp'
       - 'runtime/src/platform/keycodes.h'
       - 'runtime/src/platform/process.h'
+      - 'runtime/src/gfx/vulkan/graphics_menu_ios.cpp'
       - 'runtime/src/platform/ios_host.mm'
       - 'ios/**'
       - '.github/workflows/ios-runtime-build.yml'
