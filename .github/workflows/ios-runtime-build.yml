@@ -8,6 +8,7 @@ on:
       - 'cmake/WindowsDependencies.cmake'
       - 'runtime/src/main.cpp'
       - 'runtime/src/core.cpp'
+      - 'runtime/src/true60_test.cpp'
       - 'runtime/include/ppc.h'
       - 'runtime/src/platform/keycodes.h'
       - 'runtime/src/platform/process.h'
