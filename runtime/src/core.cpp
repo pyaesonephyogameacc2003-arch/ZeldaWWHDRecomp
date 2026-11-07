@@ -2,7 +2,7 @@
 // Guest memory, RPX loading, function dispatch, logging and HLE registry.
 #if defined(__APPLE__)
 #include <mach/mach.h>
-#include <mach/mach_vm.h>
+#include <mach/vm_map.h>
 #include <mach-o/ldsyms.h>
 #endif
 #include "platform/host.h"
@@ -101,8 +101,8 @@ static std::atomic<uint32_t> g_runtime_top{kRuntimeStart};
 
 void init() {
 #if defined(__APPLE__)
-    mach_vm_address_t addr = (mach_vm_address_t)PPC_MEM_BASE;
-    kern_return_t kr = mach_vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_FIXED);
+    vm_address_t addr = (vm_address_t)PPC_MEM_BASE;
+    kern_return_t kr = vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_FIXED);
     if (kr != KERN_SUCCESS) fatal("cannot reserve guest address space at %p (kr=%d)", PPC_MEM_BASE, kr);
     // null page guard: catches guest null-pointer accesses
     mprotect(PPC_MEM_BASE, 0x10000, PROT_NONE);
