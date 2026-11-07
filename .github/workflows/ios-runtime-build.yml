@@ -9,6 +9,7 @@ on:
       - 'runtime/src/main.cpp'
       - 'runtime/src/core.cpp'
       - 'runtime/src/platform/keycodes.h'
+      - 'runtime/src/platform/process.h'
       - 'runtime/src/platform/ios_host.mm'
       - 'ios/**'
       - '.github/workflows/ios-runtime-build.yml'
