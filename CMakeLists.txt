@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(wwhd_recomp C CXX)
+
+# CMake must enable Objective-C++ before any dependency targets are created: bundled
+# Apple dependencies may contain .mm sources even when the app uses the Vulkan renderer.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  enable_language(OBJCXX)
+endif()
 # Renderers compiled into the executable:
 #   BOTH   (macOS default) Metal and Vulkan (MoltenVK) in one app; Graphics > Renderer picks one at start
 #   METAL  Metal only (macOS)
