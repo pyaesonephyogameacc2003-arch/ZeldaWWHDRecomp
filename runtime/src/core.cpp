@@ -95,17 +95,38 @@ void fatal(const char* fmt, ...) {
     abort();
 }
 
+// Guest memory base. Desktop and Android keep their established address; iOS
+// replaces it with the address returned by vm_allocate(VM_FLAGS_ANYWHERE).
+extern "C" {
+#if defined(__ANDROID__) || (defined(__linux__) && defined(__aarch64__)) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+uint8_t* g_ppc_mem_base = (uint8_t*)0x1000000000ull;
+#else
+uint8_t* g_ppc_mem_base = (uint8_t*)0x200000000000ull;
+#endif
+}
+
 // ---------------------------------------------------------------- memory
 namespace mem {
 static std::atomic<uint32_t> g_runtime_top{kRuntimeStart};
 
 void init() {
 #if defined(__APPLE__)
+#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+    // iOS has a constrained, randomized user address space. Do not request a
+    // hard-coded 64 GiB address: let the kernel choose a valid contiguous window.
+    vm_address_t addr = 0;
+    kern_return_t kr = vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_ANYWHERE);
+    if (kr != KERN_SUCCESS) fatal("cannot allocate 4 GiB guest address space anywhere (kr=%d)", kr);
+    g_ppc_mem_base = (uint8_t*)addr;
+    LOG("[mem] iOS guest address space: %p - %p", PPC_MEM_BASE, PPC_MEM_BASE + 0x100000000ull);
+#else
     vm_address_t addr = (vm_address_t)PPC_MEM_BASE;
     kern_return_t kr = vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_FIXED);
     if (kr != KERN_SUCCESS) fatal("cannot reserve guest address space at %p (kr=%d)", PPC_MEM_BASE, kr);
+#endif
     // null page guard: catches guest null-pointer accesses
-    mprotect(PPC_MEM_BASE, 0x10000, PROT_NONE);
+    if (mprotect(PPC_MEM_BASE, 0x10000, PROT_NONE))
+        fatal("cannot protect guest null page at %p", PPC_MEM_BASE);
 #elif defined(_WIN32)
     void* p = VirtualAlloc(PPC_MEM_BASE, 0x100000000ull, MEM_RESERVE | MEM_COMMIT | MEM_WRITE_WATCH, PAGE_READWRITE);
     if(p != PPC_MEM_BASE) fatal("cannot reserve guest address space (error=%lu)",GetLastError());

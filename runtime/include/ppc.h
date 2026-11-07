@@ -12,13 +12,10 @@
 extern "C" {
 #endif
 
-#if defined(__ANDROID__) || (defined(__linux__) && defined(__aarch64__)) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
-/* arm64 Linux kernels (Android, Raspberry Pi OS and other 4K-page configurations) often have a 39-bit
-   user address space (512 GiB), where 32 TiB is out of reach: stay well below it (64 GiB) */
-#define PPC_MEM_BASE ((uint8_t*)0x1000000000ull)
-#else
-#define PPC_MEM_BASE ((uint8_t*)0x200000000000ull)
-#endif
+/* The guest window is allocated by mem::init(). iOS cannot promise a fixed
+   high virtual address, so all generated guest accesses use this process-wide base. */
+extern uint8_t* g_ppc_mem_base;
+#define PPC_MEM_BASE (g_ppc_mem_base)
 
 typedef struct Cpu {
     uint32_t r[32];

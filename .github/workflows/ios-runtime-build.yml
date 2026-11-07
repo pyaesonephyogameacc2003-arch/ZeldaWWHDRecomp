@@ -32,7 +32,9 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
         with:
-          ref: main
+          # Build the exact branch/PR commit that triggered this run; never silently
+          # fall back to main when validating an iOS runtime fix.
+          ref: ${{ github.sha }}
 
       - name: Install isolated game archive downloader
         run: |
