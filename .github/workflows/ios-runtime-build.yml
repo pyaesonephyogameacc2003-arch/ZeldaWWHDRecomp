@@ -134,14 +134,22 @@ jobs:
         run: |
           set -euo pipefail
           APP="$(find build/ios -maxdepth 3 -type d -name '*.app' -print -quit)"
+          echo "Detected app bundle: $APP"
           test -n "$APP"
           test -s "$APP/Info.plist"
-          test -x "$APP/wwhd"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist"
+          EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          BIN="$APP/$EXECUTABLE"
+          echo "Detected executable: $BIN"
+          ls -la "$APP"
+          test -s "$BIN"
+          chmod 755 "$BIN"
+          test -x "$BIN"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
-          file "$APP/wwhd"
-          lipo -info "$APP/wwhd"
-          if otool -L "$APP/wwhd" | grep -q 'AppKit.framework'; then
+          file "$BIN"
+          lipo -info "$BIN"
+          if otool -L "$BIN" | grep -q 'AppKit.framework'; then
             echo "ERROR: macOS AppKit leaked into the iOS app link"
             exit 1
           fi
