@@ -1,7 +1,7 @@
 /* Espresso (Wii U PowerPC) CPU state and helpers used by recompiled code.
  *
- * Guest memory is a 4 GiB window mapped at a fixed host address, so a guest
- * effective address converts to a host pointer with a single add.
+ * Guest memory is a 4 GiB window. Its host base is selected at runtime because
+ * iOS does not guarantee that a particular virtual address is available.
  */
 #pragma once
 #include <math.h>
@@ -12,13 +12,8 @@
 extern "C" {
 #endif
 
-#if defined(__ANDROID__) || (defined(__linux__) && defined(__aarch64__)) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
-/* arm64 Linux kernels (Android, Raspberry Pi OS and other 4K-page configurations) often have a 39-bit
-   user address space (512 GiB), where 32 TiB is out of reach: stay well below it (64 GiB) */
-#define PPC_MEM_BASE ((uint8_t*)0x1000000000ull)
-#else
-#define PPC_MEM_BASE ((uint8_t*)0x200000000000ull)
-#endif
+/* Set by mem::init() before any guest code or memory helpers are used. */
+extern uint8_t* g_ppc_mem_base;
 
 typedef struct Cpu {
     uint32_t r[32];
@@ -93,7 +88,7 @@ void ppc_mod_run(Cpu* c);
 #define PPC_LOOP() __asm__ __volatile__("" ::: "memory")
 
 /* ---- memory ---- */
-static inline uint8_t* ppc_ptr(uint32_t ea) { return PPC_MEM_BASE + ea; }
+static inline uint8_t* ppc_ptr(uint32_t ea) { return g_ppc_mem_base + ea; }
 static inline uint8_t ld8(uint32_t ea) { return *ppc_ptr(ea); }
 static inline uint16_t ld16(uint32_t ea) { uint16_t v; memcpy(&v, ppc_ptr(ea), 2); return __builtin_bswap16(v); }
 static inline uint32_t ld32(uint32_t ea) { uint32_t v; memcpy(&v, ppc_ptr(ea), 4); return __builtin_bswap32(v); }
