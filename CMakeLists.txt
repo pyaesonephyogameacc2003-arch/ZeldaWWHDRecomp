@@ -395,7 +395,8 @@ if(WWHD_SDL_HOST)
   target_link_libraries(wwhd PRIVATE SDL3::SDL3)
   if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     target_link_libraries(wwhd PRIVATE compression
-      "-framework Foundation" "-framework UIKit" "-framework QuartzCore"
+      "-framework Foundation" "-framework UIKit" "-framework QuartzCore" "-framework Metal"
+      "-framework CoreGraphics" "-framework CoreVideo" "-framework IOSurface"
       "-framework GameController" "-framework AudioToolbox" "-framework AVFoundation" "-framework CoreAudio")
   elseif(APPLE)
     target_link_libraries(wwhd PRIVATE compression "-framework Foundation" "-framework AppKit")
