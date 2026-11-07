@@ -158,6 +158,26 @@ jobs:
           echo "PASS: unsigned iOS arm64 .app bundle compiled and validated."
           echo "The app bundle remains on the ephemeral runner; no game code or IPA is uploaded."
 
+      # Package only on the ephemeral runner to verify the iOS Payload layout.
+      # Do not upload the IPA: the executable contains recompiled proprietary game code.
+      - name: Package and validate unsigned IPA (ephemeral only)
+        run: |
+          set -euo pipefail
+          APP="build/ios/wwhd.app"
+          OUT="$RUNNER_TEMP/wwhd-ipa-check"
+          IPA="$OUT/Wind-Waker-HD-unsigned.ipa"
+          rm -rf "$OUT"
+          mkdir -p "$OUT/Payload"
+          ditto "$APP" "$OUT/Payload/wwhd.app"
+          (cd "$OUT" && /usr/bin/zip -qry "$IPA" Payload)
+          test -s "$IPA"
+          /usr/bin/unzip -t "$IPA"
+          /usr/bin/unzip -Z1 "$IPA" | grep -Fxq 'Payload/wwhd.app/Info.plist'
+          /usr/bin/unzip -Z1 "$IPA" | grep -Fxq 'Payload/wwhd.app/wwhd'
+          echo "PASS: unsigned IPA package structure validated."
+          du -h "$IPA"
+          echo "IPA intentionally not uploaded; runner cleanup removes it after this job."
+
       - name: Package and validate unsigned IPA (ephemeral only)
         run: |
           set -euo pipefail
