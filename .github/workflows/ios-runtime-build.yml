@@ -32,7 +32,8 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
         with:
-          ref: main
+          # Build the exact commit that triggered this run; do not silently use main.
+          ref: ${{ github.sha }}
 
       - name: Install isolated game archive downloader
         run: |
