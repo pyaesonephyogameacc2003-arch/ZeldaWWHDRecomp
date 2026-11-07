@@ -227,7 +227,7 @@ bool handle_event(const SDL_Event& e) {
        e.type!=SDL_EVENT_FINGER_UP && e.type!=SDL_EVENT_FINGER_CANCELED) return false;
     std::lock_guard<std::mutex> lock(mu);
     if(e.type==SDL_EVENT_FINGER_DOWN) {
-        if(!shown) { if(e.tfinger.x<.13f && e.tfinger.y<.13f) shown=true; return true; }
+        if(!shown) { if(e.tfinger.x<.13f && e.tfinger.y<.13f) { shown=true; return true; } return false; }
         Finger f;
         const float x=e.tfinger.x,y=e.tfinger.y;
         if(x<.34f && y>.55f) f.owner=Owner::LeftStick;
@@ -260,7 +260,7 @@ void reset() {
 void draw_overlay() {
     std::lock_guard<std::mutex> lock(mu);
     ImGuiIO& io=ImGui::GetIO();
-    ImDrawList* d=ImGui::GetForegroundDrawList();
+    ImDrawList* d=ImGui::GetForegroundDrawList(ImGui::GetMainViewport());
     const float w=io.DisplaySize.x,h=io.DisplaySize.y,s=std::min(w,h);
     if(!shown) { circle(d,ImVec2(s*.07f,s*.07f),s*.035f,"PAD"); return; }
     circle(d,ImVec2(w*.17f,h*.73f),s*.145f,"L",lx!=0||ly!=0);
@@ -283,4 +283,14 @@ void draw_overlay() {
 }
 } // namespace touch_pad
 #endif
+#endif
+
+#if !defined(__APPLE__) || !TARGET_OS_IOS
+#include "touch_pad.h"
+namespace touch_pad {
+bool enabled() { return false; }
+bool handle_event(const SDL_Event&) { return false; }
+void draw_overlay() {}
+void reset() {}
+}
 #endif
