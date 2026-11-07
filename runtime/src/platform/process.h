@@ -76,7 +76,7 @@ inline ProcessResult run_process(const std::vector<std::string>& args,const std:
     posix_spawn_file_actions_addclose(&actions,pipefd[0]);
     posix_spawn_file_actions_addclose(&actions,pipefd[1]);
     if(!directory.empty()) {
-#if defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__))
+#if (defined(__APPLE__) && !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)) || (defined(__linux__) && !defined(__ANDROID__))
         int error=posix_spawn_file_actions_addchdir_np(&actions,directory.c_str());
         if(error){posix_spawn_file_actions_destroy(&actions);close(pipefd[0]);close(pipefd[1]);result.error="cannot set tool working directory";return result;}
 #else
