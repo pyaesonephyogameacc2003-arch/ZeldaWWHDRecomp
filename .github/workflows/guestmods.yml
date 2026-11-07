@@ -1,8 +1,7 @@
 # Mod packages contain synthetic PowerPC code only; compile with setup's actual host toolchains.
 name: guestmods
 on:
-  push:
-    branches: ["**"]   # not on tag pushes: a release tag points at a commit CI already tested
+  workflow_dispatch:
   pull_request:
 jobs:
   public-headers:
