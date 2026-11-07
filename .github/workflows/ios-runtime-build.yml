@@ -7,6 +7,7 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/WindowsDependencies.cmake'
       - 'runtime/src/main.cpp'
+      - 'runtime/src/core.cpp'
       - 'runtime/src/platform/keycodes.h'
       - 'runtime/src/platform/ios_host.mm'
       - 'ios/**'
