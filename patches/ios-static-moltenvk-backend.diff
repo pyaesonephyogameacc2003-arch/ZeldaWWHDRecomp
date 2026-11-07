@@ -1,0 +1,7 @@
+Apply with: git apply patches/ios-static-moltenvk-backend.diff
+
+See docs/ios-static-moltenvk.md for the full description of the backend.cpp changes:
+1. Define VK_USE_PLATFORM_METAL_EXT on iOS SDL host builds
+2. Include dlfcn.h and SDL_metal.h on iOS
+3. On iOS, resolve vkGetInstanceProcAddr from the static MoltenVK link instead of SDL_Vulkan_LoadLibrary
+4. Create surfaces via VK_EXT_metal_surface + SDL_Metal_CreateView
