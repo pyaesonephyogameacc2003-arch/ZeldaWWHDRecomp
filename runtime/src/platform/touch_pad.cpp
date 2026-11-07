@@ -131,6 +131,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_wwhdrecomp_wwhd_TouchControls_nativeS
 #include "touch_pad.h"
 
 namespace touch_pad {
+bool enabled() { return true; }
 namespace {
 enum class Owner { None, LeftStick, RightStick, Button };
 struct Finger { Owner owner=Owner::None; int code=-1; float x=0, y=0; };
