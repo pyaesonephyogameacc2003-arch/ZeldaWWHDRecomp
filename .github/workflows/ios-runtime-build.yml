@@ -1,0 +1,138 @@
+name: iOS ARM64 Runtime Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-app:
+    name: Build Wind Waker HD iOS app bundle
+    runs-on: macos-15
+    timeout-minutes: 240
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install isolated game archive downloader
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/wwhd-venv"
+          "$RUNNER_TEMP/wwhd-venv/bin/python" -m pip install --upgrade "gdown==6.5.1"
+
+      - name: Download and verify user-provided USA game archive
+        env:
+          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wwhd-input"
+          "$RUNNER_TEMP/wwhd-venv/bin/gdown" --continue --retries 5 "https://drive.google.com/uc?id=$DRIVE_FILE_ID" \
+            --output "$RUNNER_TEMP/wwhd-input/game.zip"
+          "$RUNNER_TEMP/wwhd-venv/bin/python" - <<'PY'
+          import hashlib, os, zipfile
+          archive = os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "game.zip")
+          expected = "c4f0ab300542e0bfc462696850534e71db2ad02288a7eb55e5a4cd4062f16153"
+          suffix = "/code/cking.rpx"
+          with zipfile.ZipFile(archive) as z:
+              matches = [n for n in z.namelist() if n.lower().endswith(suffix)]
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected exactly one {suffix}; found {len(matches)}")
+              target = os.path.join(os.environ["RUNNER_TEMP"], "wwhd-input", "cking.rpx")
+              with z.open(matches[0]) as src, open(target, "wb") as dst:
+                  while block := src.read(1024 * 1024):
+                      dst.write(block)
+          h = hashlib.sha256()
+          with open(target, "rb") as f:
+              for block in iter(lambda: f.read(1024 * 1024), b""):
+                  h.update(block)
+          actual = h.hexdigest()
+          print("RPX SHA-256:", actual)
+          if actual != expected:
+              raise SystemExit("The archive does not contain the expected USA base-game RPX")
+          PY
+
+      - name: Generate actual recompiled game sources
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/wwhd-generated-code"
+          "$RUNNER_TEMP/wwhd-venv/bin/python" -u tools/recomp/recomp.py "$RUNNER_TEMP/wwhd-input/cking.rpx" "$OUT"
+          test -s "$OUT/funcs.h"
+          test -s "$OUT/table.c"
+          test -s "$OUT/imports.c"
+          test -s "$OUT/report.txt"
+          COUNT="$(find "$OUT" -maxdepth 1 -type f -name 'code_*.c' | wc -l | tr -d ' ')"
+          test "$COUNT" -gt 0
+          echo "Generated source files: $COUNT"
+          du -sh "$OUT"
+          cat "$OUT/report.txt"
+
+      - name: Checkout pinned MoltenVK source
+        uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/MoltenVK
+          ref: 5189f8de86ec365860f63bf1da736815cfaea5cd
+          path: MoltenVK
+
+      - name: Build static MoltenVK for iOS
+        working-directory: MoltenVK
+        run: |
+          set -euo pipefail
+          ./fetchDependencies --ios
+          xcodebuild build -quiet \
+            -project MoltenVKPackaging.xcodeproj \
+            -scheme "MoltenVK Package (iOS only)" \
+            -configuration Release
+
+      - name: Verify iOS MoltenVK slice
+        run: |
+          set -euo pipefail
+          XC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework"
+          INC="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include"
+          test -s "$XC/ios-arm64/libMoltenVK.a"
+          test -s "$INC/vulkan/vulkan.h"
+          lipo -info "$XC/ios-arm64/libMoltenVK.a"
+
+      - name: Configure iOS app bundle
+        run: |
+          set -euo pipefail
+          cmake -S . -B build/ios -G Ninja \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGEN_DIR="$RUNNER_TEMP/wwhd-generated-code" \
+            -DWWHD_RENDERER=VULKAN \
+            -DWWHD_BUNDLED_DEPS=ON \
+            -DWWHD_EDITOR_MCP=OFF \
+            -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
+            -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
+            -DWWHD_IOS_BUNDLE_ID=com.pyaesonephyogameacc2003.wwhd \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+
+      - name: Compile the complete iOS app target
+        run: |
+          set -euo pipefail
+          cmake --build build/ios --config Release --target wwhd --parallel 4
+
+      - name: Validate unsigned iOS app bundle
+        run: |
+          set -euo pipefail
+          APP="$(find build/ios -maxdepth 3 -type d -name '*.app' -print -quit)"
+          test -n "$APP"
+          test -s "$APP/Info.plist"
+          test -x "$APP/wwhd"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+          file "$APP/wwhd"
+          lipo -info "$APP/wwhd"
+          if otool -L "$APP/wwhd" | grep -q 'AppKit.framework'; then
+            echo "ERROR: macOS AppKit leaked into the iOS app link"
+            exit 1
+          fi
+          echo "PASS: unsigned iOS arm64 .app bundle compiled and validated."
+          echo "The app bundle remains on the ephemeral runner; no game code or IPA is uploaded."
+
