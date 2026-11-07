@@ -27,6 +27,13 @@
 #include "runtime.h"
 #include "native_text_startup_seal.h"
 
+/* Shared with recompiled C/C++ guest code through ppc.h. */
+#if defined(__ANDROID__) || (defined(__linux__) && defined(__aarch64__)) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+extern "C" { uint8_t* g_ppc_mem_base = reinterpret_cast<uint8_t*>(0x1000000000ull); }
+#else
+extern "C" { uint8_t* g_ppc_mem_base = reinterpret_cast<uint8_t*>(0x200000000000ull); }
+#endif
+
 bool g_trace_hle = false;
 namespace config {
 std::string game_dir = "game";
@@ -101,29 +108,39 @@ static std::atomic<uint32_t> g_runtime_top{kRuntimeStart};
 
 void init() {
 #if defined(__APPLE__)
-    vm_address_t addr = (vm_address_t)PPC_MEM_BASE;
+#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+    // iOS processes cannot rely on the historical 64 GiB guest base being free.
+    // Let Mach choose a contiguous 4 GiB range and publish it before guest code runs.
+    vm_address_t addr = 0;
+    kern_return_t kr = vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_ANYWHERE);
+    if (kr != KERN_SUCCESS) fatal("cannot reserve 4 GiB guest address space (kr=%d)", kr);
+    g_ppc_mem_base = reinterpret_cast<uint8_t*>(addr);
+#else
+    vm_address_t addr = (vm_address_t)g_ppc_mem_base;
     kern_return_t kr = vm_allocate(mach_task_self(), &addr, 0x100000000ull, VM_FLAGS_FIXED);
-    if (kr != KERN_SUCCESS) fatal("cannot reserve guest address space at %p (kr=%d)", PPC_MEM_BASE, kr);
+    if (kr != KERN_SUCCESS) fatal("cannot reserve guest address space at %p (kr=%d)", g_ppc_mem_base, kr);
+    g_ppc_mem_base = reinterpret_cast<uint8_t*>(addr);
+#endif
     // null page guard: catches guest null-pointer accesses
-    mprotect(PPC_MEM_BASE, 0x10000, PROT_NONE);
+    if (mprotect(g_ppc_mem_base, 0x10000, PROT_NONE)) fatal("cannot protect guest null page");
 #elif defined(_WIN32)
-    void* p = VirtualAlloc(PPC_MEM_BASE, 0x100000000ull, MEM_RESERVE | MEM_COMMIT | MEM_WRITE_WATCH, PAGE_READWRITE);
-    if(p != PPC_MEM_BASE) fatal("cannot reserve guest address space (error=%lu)",GetLastError());
-    DWORD old; if(!VirtualProtect(PPC_MEM_BASE,0x10000,PAGE_NOACCESS,&old)) fatal("cannot protect guest null page");
+    void* p = VirtualAlloc(g_ppc_mem_base, 0x100000000ull, MEM_RESERVE | MEM_COMMIT | MEM_WRITE_WATCH, PAGE_READWRITE);
+    if(p != g_ppc_mem_base) fatal("cannot reserve guest address space (error=%lu)",GetLastError());
+    if(!VirtualProtect(g_ppc_mem_base,0x10000,PAGE_NOACCESS,&old))fatal("cannot protect guest null page");
 #else
     // Never replace existing mappings: requesting a hint and checking the result is safe on
     // systems whose headers lack MAP_FIXED_NOREPLACE.
 #ifdef __ANDROID__
     // phones have little RAM and strict commit accounting: pages are committed on first touch
-    void* p = mmap(PPC_MEM_BASE,0x100000000ull,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE,-1,0);
+    void* p = mmap(g_ppc_mem_base,0x100000000ull,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE,-1,0);
 #else
-    void* p = mmap(PPC_MEM_BASE,0x100000000ull,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    void* p = mmap(g_ppc_mem_base,0x100000000ull,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
 #endif
-    if(p != PPC_MEM_BASE) { if(p!=MAP_FAILED)munmap(p,0x100000000ull); fatal("cannot reserve guest address space at %p",PPC_MEM_BASE); }
-    if(mprotect(PPC_MEM_BASE,0x10000,PROT_NONE))fatal("cannot protect guest null page");
+    if(p != g_ppc_mem_base) { if(p!=MAP_FAILED)munmap(p,0x100000000ull); fatal("cannot reserve guest address space at %p",g_ppc_mem_base); }
+    if(mprotect(g_ppc_mem_base,0x10000,PROT_NONE))fatal("cannot protect guest null page");
 #endif
     // texture change detection (write_watch.h): after the crash handler, which it chains to
-    if (!wwatch::init(PPC_MEM_BASE, 0x100000000ull)) LOG("[mem] write tracking unavailable: textures use sampled change checks");
+    if (!wwatch::init(g_ppc_mem_base, 0x100000000ull)) LOG("[mem] write tracking unavailable: textures use sampled change checks");
 }
 
 static std::mutex g_alloc_log_m;
@@ -230,7 +247,7 @@ bool load_rpx(const std::string& path, LoadedModule& out) {
             }
         }
     }
-    crash_memory::install(std::move(diagnostic_sections), PPC_MEM_BASE);
+    crash_memory::install(std::move(diagnostic_sections), g_ppc_mem_base);
     return true;
 }
 
