@@ -106,7 +106,7 @@ static void crash_out(int fd, const char* s, size_t n) { crash_context::redact(f
 static void crash_log_only(int fd, const char* s, size_t n) { crash_context::redact(fd, {s,n}, crash_log_raw); }
 static void crash_handler(int sig, siginfo_t* si, void* uctx) {
     uintptr_t a = (uintptr_t)si->si_addr;
-    uintptr_t base = (uintptr_t)PPC_MEM_BASE;
+    uintptr_t base = (uintptr_t)g_ppc_mem_base;
     char path[96];
     {
         mkdir("captures", 0755);
@@ -224,7 +224,7 @@ static LONG WINAPI crash_handler(EXCEPTION_POINTERS* ex) {
     if((code==EXCEPTION_ACCESS_VIOLATION||code==EXCEPTION_IN_PAGE_ERROR)&&er->NumberParameters>=2){
         const ULONG_PTR kind=er->ExceptionInformation[0], target=er->ExceptionInformation[1];
         const char* what=kind==0?"read":kind==1?"write":kind==8?"execute (DEP)":"access";
-        const uintptr_t gbase=(uintptr_t)PPC_MEM_BASE;
+        const uintptr_t gbase=(uintptr_t)g_ppc_mem_base;
         n=fit(snprintf(line,sizeof line,"  %s: %s of address %p",code==EXCEPTION_ACCESS_VIOLATION?"access violation":"in-page error",
                        what,(void*)target),sizeof line);
         if(target>=gbase&&target<gbase+0x100000000ull) n+=fit(snprintf(line+n,sizeof line-n," (guest address %08X)",(unsigned)(target-gbase)),sizeof line-n);
