@@ -1,0 +1,59 @@
+name: Decrypt Wind Waker HD IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/decrypt-ipa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  decrypt-ipa:
+    name: Download and decrypt IPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install downloader
+        run: python -m pip install --disable-pip-version-check gdown==6.5.1
+
+      - name: Download encrypted IPA from Google Drive
+        env:
+          DRIVE_FILE_ID: 1Y01K8c39kp7T_kJHUFA_znK2xHOK4KWE
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ipa"
+          gdown --fuzzy --continue --retries 5 "https://drive.google.com/file/d/$DRIVE_FILE_ID/view" \
+            --output "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
+          test -s "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
+          file "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
+          ls -lh "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc"
+
+      - name: Decrypt with repository Actions secret
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IPA_ARTIFACT_PASSWORD" ]; then
+            echo "::error::Repository secret IPA_ARTIFACT_PASSWORD is missing."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa.enc" \
+            -out "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa" \
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa"
+          unzip -t "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa"
+          unzip -Z1 "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa" | grep -Fxq 'Payload/wwhd.app/Info.plist'
+          unzip -Z1 "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa" | grep -Fxq 'Payload/wwhd.app/wwhd'
+          echo "PASS: decrypted IPA ZIP and expected app bundle structure verified."
+          shasum -a 256 "$RUNNER_TEMP/ipa/Wind-Waker-HD-unsigned.ipa"
+
+      - name: Upload decrypted IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wind-Waker-HD-iOS-decrypted-IPA
+          path: ${{ runner.temp }}/ipa/Wind-Waker-HD-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 3
