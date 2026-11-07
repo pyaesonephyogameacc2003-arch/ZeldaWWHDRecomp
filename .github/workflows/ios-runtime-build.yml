@@ -158,3 +158,23 @@ jobs:
           echo "PASS: unsigned iOS arm64 .app bundle compiled and validated."
           echo "The app bundle remains on the ephemeral runner; no game code or IPA is uploaded."
 
+      - name: Package and validate unsigned IPA (ephemeral only)
+        run: |
+          set -euo pipefail
+          APP="build/ios/wwhd.app"
+          IPA_DIR="$RUNNER_TEMP/wwhd-ipa"
+          IPA="$RUNNER_TEMP/wwhd-unsigned.ipa"
+          mkdir -p "$IPA_DIR/Payload"
+          ditto "$APP" "$IPA_DIR/Payload/wwhd.app"
+          ditto -c -k --sequesterRsrc --keepParent "$IPA_DIR/Payload" "$IPA"
+          test -s "$IPA"
+          unzip -t "$IPA"
+          unzip -p "$IPA" Payload/wwhd.app/Info.plist > "$RUNNER_TEMP/wwhd-ipa-Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$RUNNER_TEMP/wwhd-ipa-Info.plist"
+          unzip -p "$IPA" Payload/wwhd.app/wwhd > "$RUNNER_TEMP/wwhd-ipa-executable"
+          file "$RUNNER_TEMP/wwhd-ipa-executable"
+          lipo -info "$RUNNER_TEMP/wwhd-ipa-executable"
+          echo "PASS: unsigned IPA archive structure and ARM64 executable validated."
+          echo "IPA is intentionally not uploaded; this public workflow keeps game code private."
+          rm -rf "$IPA_DIR" "$IPA" "$RUNNER_TEMP/wwhd-ipa-Info.plist" "$RUNNER_TEMP/wwhd-ipa-executable"
+
