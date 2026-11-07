@@ -227,6 +227,12 @@ bool handle_event(const SDL_Event& e) {
        e.type!=SDL_EVENT_FINGER_UP && e.type!=SDL_EVENT_FINGER_CANCELED) return false;
     std::lock_guard<std::mutex> lock(mu);
     if(e.type==SDL_EVENT_FINGER_DOWN) {
+        if(shown && e.tfinger.x<.13f && e.tfinger.y<.13f) {
+            shown=false;
+            for(auto& p:fingers) release(p.second);
+            fingers.clear(); lx=ly=rx=ry=lt=rt=0; buttons=0; publish();
+            return true;
+        }
         if(!shown) { if(e.tfinger.x<.13f && e.tfinger.y<.13f) { shown=true; return true; } return false; }
         Finger f;
         const float x=e.tfinger.x,y=e.tfinger.y;
@@ -240,6 +246,7 @@ bool handle_event(const SDL_Event& e) {
             if(f.code<0) f.owner=Owner::None;
             else if(f.code<SDL_GAMEPAD_BUTTON_COUNT) buttons|=1u<<f.code;
         }
+        if(f.owner==Owner::None) return false;
         fingers[e.tfinger.fingerID]=f;
         update(fingers[e.tfinger.fingerID],x,y);
         publish();
@@ -279,6 +286,7 @@ void draw_overlay() {
     circle(d,ImVec2(w*.86f,h*.15f),s*.05f,"ZR",rt>0);
     circle(d,ImVec2(w*.43f,h*.92f),s*.045f,"−",buttons&(1u<<SDL_GAMEPAD_BUTTON_BACK));
     circle(d,ImVec2(w*.57f,h*.92f),s*.045f,"+",buttons&(1u<<SDL_GAMEPAD_BUTTON_START));
+    circle(d,ImVec2(s*.07f,s*.07f),s*.035f,"×");
     d->AddText(ImVec2(w*.02f,h*.025f),IM_COL32(255,255,255,190),"WWHD TOUCH");
 }
 } // namespace touch_pad
