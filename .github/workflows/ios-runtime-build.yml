@@ -189,4 +189,38 @@ jobs:
           du -h "$IPA"
           echo "IPA intentionally not uploaded; runner cleanup removes it after this job."
 
+      # The executable contains recompiled proprietary game code. Only publish
+      # an encrypted artifact; the decryption password must be stored as a repo secret.
+      - name: Encrypt IPA for artifact download
+        id: encrypt_ipa
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IPA_ARTIFACT_PASSWORD" ]; then
+            echo "::warning::Set repository Actions secret IPA_ARTIFACT_PASSWORD to enable encrypted IPA artifact."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${#IPA_ARTIFACT_PASSWORD}" -lt 20 ]; then
+            echo "IPA_ARTIFACT_PASSWORD must be at least 20 characters."
+            exit 1
+          fi
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/wwhd-ipa-check/Wind-Waker-HD-unsigned.ipa" \
+            -out "$RUNNER_TEMP/Wind-Waker-HD-unsigned.ipa.enc" \
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s "$RUNNER_TEMP/Wind-Waker-HD-unsigned.ipa.enc"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "Encrypted IPA is ready for a short-lived artifact."
+
+      - name: Upload encrypted IPA artifact
+        if: steps.encrypt_ipa.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wind-Waker-HD-iOS-encrypted-IPA
+          path: ${{ runner.temp }}/Wind-Waker-HD-unsigned.ipa.enc
+          if-no-files-found: error
+          retention-days: 3
+
 
