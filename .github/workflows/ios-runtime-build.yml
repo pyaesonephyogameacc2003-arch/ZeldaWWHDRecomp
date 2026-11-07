@@ -139,13 +139,10 @@ jobs:
       - name: Validate unsigned iOS app bundle
         run: |
           set -euo pipefail
-          # CMake also builds native test bundles; never select the first arbitrary .app.
-          # The real application target is explicitly named wwhd.app by the linker.
           APP="build/ios/wwhd.app"
           echo "Checking application bundle: $APP"
           test -d "$APP"
           test -s "$APP/Info.plist"
-          # Expose Documents/game in the iOS Files app so owners can copy their own dump.
           /usr/libexec/PlistBuddy -c 'Set :UIFileSharingEnabled true' "$APP/Info.plist" 2>/dev/null || \
             /usr/libexec/PlistBuddy -c 'Add :UIFileSharingEnabled bool true' "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Set :LSSupportsOpeningDocumentsInPlace true' "$APP/Info.plist" 2>/dev/null || \
@@ -171,8 +168,6 @@ jobs:
           echo "PASS: unsigned iOS arm64 .app bundle compiled and validated."
           echo "The app bundle remains on the ephemeral runner; no game code or IPA is uploaded."
 
-      # Package only on the ephemeral runner to verify the iOS Payload layout.
-      # Do not upload the IPA: the executable contains recompiled proprietary game code.
       - name: Package and validate unsigned IPA (ephemeral only)
         run: |
           set -euo pipefail
@@ -191,8 +186,6 @@ jobs:
           du -h "$IPA"
           echo "IPA intentionally not uploaded; runner cleanup removes it after this job."
 
-      # The executable contains recompiled proprietary game code. Publish only
-      # an encrypted artifact; the decryption password must be stored as a repo secret.
       - name: Encrypt IPA for artifact download
         id: encrypt_ipa
         env:
@@ -224,5 +217,3 @@ jobs:
           path: ${{ runner.temp }}/Wind-Waker-HD-unsigned.ipa.enc
           if-no-files-found: error
           retention-days: 3
-
-
