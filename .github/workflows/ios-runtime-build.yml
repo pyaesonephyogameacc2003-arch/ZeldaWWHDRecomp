@@ -12,6 +12,10 @@ on:
       - 'runtime/src/platform/process.h'
       - 'runtime/src/gfx/vulkan/graphics_menu_ios.cpp'
       - 'runtime/src/platform/ios_host.mm'
+      - 'runtime/src/platform/touch_pad.cpp'
+      - 'runtime/src/platform/touch_pad.h'
+      - 'runtime/src/overlay/overlay.cpp'
+      - 'runtime/src/gfx/vulkan/backend.cpp'
       - 'ios/**'
       - '.github/workflows/ios-runtime-build.yml'
 
