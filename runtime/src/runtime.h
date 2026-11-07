@@ -38,8 +38,8 @@ uint32_t runtime_top();
 void raise_runtime_top(uint32_t top);
 struct AllocRec { uint32_t addr, size; uint64_t tag; };
 std::vector<AllocRec> runtime_alloc_log();  // sorted by address
-inline uint8_t* ptr(uint32_t ea) { return PPC_MEM_BASE + ea; }
-inline uint32_t guest(const void* p) { return (uint32_t)((const uint8_t*)p - PPC_MEM_BASE); }
+inline uint8_t* ptr(uint32_t ea) { return g_ppc_mem_base + ea; }
+inline uint32_t guest(const void* p) { return (uint32_t)((const uint8_t*)p - g_ppc_mem_base); }
 std::string read_cstr(uint32_t ea);
 void write_cstr(uint32_t ea, const std::string& s, uint32_t max);
 }  // namespace mem
