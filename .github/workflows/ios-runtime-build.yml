@@ -189,7 +189,7 @@ jobs:
           du -h "$IPA"
           echo "IPA intentionally not uploaded; runner cleanup removes it after this job."
 
-      # The executable contains recompiled proprietary game code. Only publish
+      # The executable contains recompiled proprietary game code. Publish only
       # an encrypted artifact; the decryption password must be stored as a repo secret.
       - name: Encrypt IPA for artifact download
         id: encrypt_ipa
