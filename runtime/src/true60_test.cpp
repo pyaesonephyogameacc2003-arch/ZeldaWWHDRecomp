@@ -731,7 +731,7 @@ void wp_handler(int sig, siginfo_t* si, void* uc) {
         pthread_getname_np(pthread_self(), name, sizeof name);
         Cpu* c = threads::current();
         char buf[200];
-        int n = snprintf(buf, sizeof buf, "[wp] write %08X by \"%s\" guest lr=%08X\n", (unsigned)(a - (uintptr_t)PPC_MEM_BASE), name,
+        int n = snprintf(buf, sizeof buf, "[wp] write %08X by \"%s\" guest lr=%08X\n", (unsigned)(a - (uintptr_t)g_ppc_mem_base), name,
                          c ? c->lr : 0);
         write(2, buf, n);
         void* fr[24];
@@ -748,8 +748,8 @@ void wp_handler(int sig, siginfo_t* si, void* uc) {
 }
 void wp_arm(uint32_t guest_lo, uint32_t size) {
     uintptr_t pg = (uintptr_t)getpagesize();
-    uintptr_t lo = ((uintptr_t)PPC_MEM_BASE + guest_lo) & ~(pg - 1);
-    uintptr_t hi = ((uintptr_t)PPC_MEM_BASE + guest_lo + size + pg - 1) & ~(pg - 1);
+    uintptr_t lo = ((uintptr_t)g_ppc_mem_base + guest_lo) & ~(pg - 1);
+    uintptr_t hi = ((uintptr_t)g_ppc_mem_base + guest_lo + size + pg - 1) & ~(pg - 1);
     g_wp_lo = lo;
     g_wp_hi = hi;
     struct sigaction sa{};
@@ -766,7 +766,7 @@ void wp_arm(uint32_t guest_lo, uint32_t size) {
         }
         mprotect((void*)g_wp_lo.load(), g_wp_hi - g_wp_lo, PROT_READ | PROT_WRITE);
     }).detach();
-    LOG("[wp] armed %08X..%08X", (unsigned)(lo - (uintptr_t)PPC_MEM_BASE), (unsigned)(hi - (uintptr_t)PPC_MEM_BASE));
+    LOG("[wp] armed %08X..%08X", (unsigned)(lo - (uintptr_t)g_ppc_mem_base), (unsigned)(hi - (uintptr_t)g_ppc_mem_base));
 }
 #endif
 }  // namespace
