@@ -124,6 +124,7 @@ void init() {
     // null page guard: catches guest null-pointer accesses
     if (mprotect(g_ppc_mem_base, 0x10000, PROT_NONE)) fatal("cannot protect guest null page");
 #elif defined(_WIN32)
+    DWORD old;
     void* p = VirtualAlloc(g_ppc_mem_base, 0x100000000ull, MEM_RESERVE | MEM_COMMIT | MEM_WRITE_WATCH, PAGE_READWRITE);
     if(p != g_ppc_mem_base) fatal("cannot reserve guest address space (error=%lu)",GetLastError());
     if(!VirtualProtect(g_ppc_mem_base,0x10000,PAGE_NOACCESS,&old))fatal("cannot protect guest null page");
