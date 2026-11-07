@@ -2,6 +2,15 @@ name: iOS ARM64 Runtime Build
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'CMakeLists.txt'
+      - 'cmake/WindowsDependencies.cmake'
+      - 'runtime/src/main.cpp'
+      - 'runtime/src/platform/keycodes.h'
+      - 'runtime/src/platform/ios_host.mm'
+      - 'ios/**'
+      - '.github/workflows/ios-runtime-build.yml'
 
 permissions:
   contents: read
