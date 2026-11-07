@@ -1,8 +1,7 @@
 #pragma once
 // Stable physical key IDs used in controls.json; identical across host platforms.
-#ifdef __APPLE__
-#include <Carbon/Carbon.h>
-#else
+// These are stable macOS virtual key IDs used by the shared SDL input map.
+// Keep the numeric definitions on iOS too: Carbon.h is not part of the iOS SDK.
 enum {
     kVK_ANSI_A = 0x00,
     kVK_ANSI_S = 0x01,
@@ -125,4 +124,3 @@ enum {
     kVK_JIS_Eisu = 0x66,
     kVK_JIS_Kana = 0x68,
 };
-#endif
