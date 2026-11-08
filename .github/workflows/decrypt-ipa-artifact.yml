@@ -25,7 +25,7 @@ jobs:
 
       - name: Download file from Google Drive
         env:
-          DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+          DRIVE_FILE_ID: ${{ inputs.drive_file_id || '1Vec-yUexMhrGlqiQxF6xuteRuMQlj8FR' }}
         run: |
           set -euo pipefail
           mkdir -p input output
