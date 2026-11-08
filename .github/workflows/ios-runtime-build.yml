@@ -116,7 +116,7 @@ jobs:
           xcodebuild build -quiet \
             -project MoltenVKPackaging.xcodeproj \
             -scheme "MoltenVK Package (iOS only)" \
-            -configuration Release \\
+            -configuration Release \
             MVK_HIDE_VULKAN_SYMBOLS=0
 
       - name: Verify iOS MoltenVK slice
