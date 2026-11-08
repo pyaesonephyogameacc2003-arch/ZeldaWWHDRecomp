@@ -1,0 +1,51 @@
+name: Decrypt Drive IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/decrypt-drive-ipa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  decrypt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download encrypted file from Google Drive
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "gdown==6.5.1"
+          gdown "https://drive.google.com/uc?id=1XlNXwr1jIljmwjzYvHV4wRdS_w2itTTI" --output "$RUNNER_TEMP/source.ipa.enc" --quiet
+          test -s "$RUNNER_TEMP/source.ipa.enc"
+          file "$RUNNER_TEMP/source.ipa.enc"
+          ls -lh "$RUNNER_TEMP/source.ipa.enc"
+
+      - name: Decrypt IPA
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IPA_ARTIFACT_PASSWORD" ]; then
+            echo "::error::Repository secret IPA_ARTIFACT_PASSWORD is missing."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/source.ipa.enc" \
+            -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+          unzip -t "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+          unzip -Z1 "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" | grep -Eq '^Payload/[^/]+\.app/Info\.plist$'
+          echo "Decrypted IPA validated."
+          ls -lh "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+
+      - name: Upload decrypted IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wind-Waker-HD-decrypted-IPA
+          path: ${{ runner.temp }}/Wind-Waker-HD-decrypted.ipa
+          if-no-files-found: error
+          retention-days: 3
