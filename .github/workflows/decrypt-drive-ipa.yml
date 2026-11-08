@@ -14,28 +14,65 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Download encrypted file from Google Drive
+      - name: Download file from Google Drive
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check "gdown==6.5.1"
-          gdown "https://drive.google.com/uc?id=1XlNXwr1jIljmwjzYvHV4wRdS_w2itTTI" --output "$RUNNER_TEMP/source.ipa.enc" --quiet
-          test -s "$RUNNER_TEMP/source.ipa.enc"
-          file "$RUNNER_TEMP/source.ipa.enc"
-          ls -lh "$RUNNER_TEMP/source.ipa.enc"
+          gdown "https://drive.google.com/uc?id=1XlNXwr1jIljmwjzYvHV4wRdS_w2itTTI" --output "$RUNNER_TEMP/source.download" --quiet
+          test -s "$RUNNER_TEMP/source.download"
+          echo "Downloaded file details:"
+          file "$RUNNER_TEMP/source.download"
+          ls -lh "$RUNNER_TEMP/source.download"
+          echo "First 16 bytes:"
+          od -An -tx1 -N16 "$RUNNER_TEMP/source.download"
 
-      - name: Decrypt IPA
+      - name: Extract ZIP wrapper if present and decrypt
         env:
           IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "$IPA_ARTIFACT_PASSWORD" ]; then
-            echo "::error::Repository secret IPA_ARTIFACT_PASSWORD is missing."
-            exit 1
+          SOURCE="$RUNNER_TEMP/source.download"
+          WORK="$RUNNER_TEMP/input"
+          mkdir -p "$WORK"
+
+          if unzip -tq "$SOURCE" >/dev/null 2>&1; then
+            echo "Google Drive file is a ZIP archive; extracting it first."
+            unzip -oq "$SOURCE" -d "$WORK"
+            INPUT="$(find "$WORK" -type f \( -iname '*.ipa.enc' -o -iname '*.enc' \) -print -quit)"
+            PLAIN="$(find "$WORK" -type f -iname '*.ipa' -print -quit)"
+            if [ -n "$INPUT" ]; then
+              echo "Found encrypted IPA inside ZIP."
+            elif [ -n "$PLAIN" ]; then
+              echo "Found an unencrypted IPA inside ZIP."
+              cp "$PLAIN" "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+              INPUT=""
+            else
+              echo "::error::ZIP archive contains neither an .ipa.enc/.enc file nor an .ipa file."
+              find "$WORK" -maxdepth 3 -type f -printf '%p (%s bytes)\n'
+              exit 1
+            fi
+          else
+            INPUT="$SOURCE"
           fi
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-            -in "$RUNNER_TEMP/source.ipa.enc" \
-            -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \
-            -pass env:IPA_ARTIFACT_PASSWORD
+
+          if [ -n "${INPUT:-}" ]; then
+            if [ -z "$IPA_ARTIFACT_PASSWORD" ]; then
+              echo "::error::Repository secret IPA_ARTIFACT_PASSWORD is missing."
+              exit 1
+            fi
+            MAGIC="$(head -c 8 "$INPUT" | od -An -tx1 | tr -d ' \n')"
+            echo "Encrypted input header (hex): $MAGIC"
+            if [ "$MAGIC" != "53616c7465645f5f" ]; then
+              echo "::error::Input is not an OpenSSL salted file (Salted__). It may use another encryption format or be the wrong Drive file."
+              file "$INPUT"
+              exit 1
+            fi
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+              -in "$INPUT" \
+              -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \
+              -pass env:IPA_ARTIFACT_PASSWORD
+          fi
+
           test -s "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
           unzip -t "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
           unzip -Z1 "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" | grep -Eq '^Payload/[^/]+\.app/Info\.plist$'
