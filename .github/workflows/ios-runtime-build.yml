@@ -209,11 +209,42 @@ jobs:
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "Encrypted IPA is ready for a short-lived artifact."
 
-      - name: Upload encrypted IPA artifact
+      - name: Decrypt IPA immediately after build
+        if: steps.encrypt_ipa.outputs.ready == 'true'
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \\
+            -in "$RUNNER_TEMP/Wind-Waker-HD-unsigned.ipa.enc" \\
+            -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \\
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+          /usr/bin/unzip -tq "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+          python3 - "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" <<'PY'
+          import plistlib, sys, zipfile
+          path = sys.argv[1]
+          with zipfile.ZipFile(path) as z:
+              apps = [n for n in z.namelist()
+                      if n.startswith("Payload/") and n.endswith(".app/Info.plist")]
+              if not apps:
+                  raise SystemExit("Decrypted IPA has no Payload/*.app/Info.plist")
+              for name in apps:
+                  info = plistlib.loads(z.read(name))
+                  exe = info.get("CFBundleExecutable")
+                  binary = name.rsplit("/", 1)[0] + "/" + exe if exe else ""
+                  if not binary or binary not in z.namelist():
+                      raise SystemExit(f"Missing app executable for {name}")
+                  print("Validated:", info.get("CFBundleIdentifier"), "executable:", exe)
+          print("PASS: decrypted IPA validated.")
+          PY
+          ls -lh "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
+
+      - name: Upload decrypted IPA artifact
         if: steps.encrypt_ipa.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: Wind-Waker-HD-iOS-encrypted-IPA
-          path: ${{ runner.temp }}/Wind-Waker-HD-unsigned.ipa.enc
+          name: Wind-Waker-HD-iOS-decrypted-IPA
+          path: ${{ runner.temp }}/Wind-Waker-HD-decrypted.ipa
           if-no-files-found: error
           retention-days: 3
