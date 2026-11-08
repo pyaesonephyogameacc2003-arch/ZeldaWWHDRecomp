@@ -113,23 +113,35 @@ jobs:
           test -s "$INC/vulkan/vulkan.h"
           lipo -info "$XC/ios-arm64/libMoltenVK.a"
 
-      - name: Configure iOS app bundle
+      - name: Configure iOS app bundle (retry transient dependency downloads)
         run: |
           set -euo pipefail
-          cmake -S . -B build/ios -G Ninja \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DGEN_DIR="$RUNNER_TEMP/wwhd-generated-code" \
-            -DWWHD_RENDERER=VULKAN \
-            -DWWHD_BUNDLED_DEPS=ON \
-            -DWWHD_EDITOR_MCP=OFF \
-            -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
-            -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
-            -DWWHD_IOS_BUNDLE_ID=com.pyaesonephyogameacc2003.wwhd \
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO
+          for attempt in 1 2 3 4; do
+            echo "CMake configure attempt $attempt/4"
+            if cmake -S . -B build/ios -G Ninja \
+              -DCMAKE_SYSTEM_NAME=iOS \
+              -DCMAKE_OSX_SYSROOT=iphoneos \
+              -DCMAKE_OSX_ARCHITECTURES=arm64 \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DGEN_DIR="$RUNNER_TEMP/wwhd-generated-code" \
+              -DWWHD_RENDERER=VULKAN \
+              -DWWHD_BUNDLED_DEPS=ON \
+              -DWWHD_EDITOR_MCP=OFF \
+              -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
+              -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
+              -DWWHD_IOS_BUNDLE_ID=com.pyaesonephyogameacc2003.wwhd \
+              -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO; then
+              echo "CMake configure succeeded."
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "::error::CMake configure failed after 4 attempts."
+              exit 1
+            fi
+            echo "Configure failed; retrying after 20 seconds (likely transient dependency download failure)."
+            sleep 20
+          done
 
       - name: Compile the complete iOS app target
         run: |
