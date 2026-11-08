@@ -121,16 +121,9 @@ jobs:
           ref: release-3.4.18
           path: SDL3-source
 
-      - name: Install system zstd to avoid GitHub release download 504
-        run: |
-          set -euo pipefail
-          brew list zstd >/dev/null 2>&1 || brew install zstd
-          brew --prefix zstd
-
       - name: Configure iOS app bundle (retry transient dependency downloads)
         run: |
           set -euo pipefail
-          export PKG_CONFIG_PATH="$(brew --prefix zstd)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           for attempt in 1 2 3 4; do
             echo "CMake configure attempt $attempt/4"
             if cmake -S . -B build/ios -G Ninja \
@@ -144,7 +137,6 @@ jobs:
               -DFETCHCONTENT_SOURCE_DIR_SDL3="$GITHUB_WORKSPACE/SDL3-source" \
               -DWWHD_BUNDLED_DEPS=ON \
               -DWWHD_BUNDLED_ZSTD=OFF \
-              -DWWHD_IOS_ZSTD_LIBRARY_DIR="$(brew --prefix zstd)/lib" \
               -DWWHD_EDITOR_MCP=OFF \
               -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
               -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
