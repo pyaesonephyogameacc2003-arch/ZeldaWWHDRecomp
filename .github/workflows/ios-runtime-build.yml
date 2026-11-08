@@ -43,7 +43,7 @@ jobs:
 
       - name: Download and verify user-provided USA game archive
         env:
-          DRIVE_FILE_ID: 1tnuI7CJMy6PmTezgYzlY9X6k6DPz0PpU
+          DRIVE_FILE_ID: 1RjydKfJpv2WFLszhrSkzu7a2GqX40UuJ
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/wwhd-input"
