@@ -215,9 +215,9 @@ jobs:
           IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
         run: |
           set -euo pipefail
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \\
-            -in "$RUNNER_TEMP/Wind-Waker-HD-unsigned.ipa.enc" \\
-            -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \\
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$RUNNER_TEMP/Wind-Waker-HD-unsigned.ipa.enc" \
+            -out "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa" \
             -pass env:IPA_ARTIFACT_PASSWORD
           test -s "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
           /usr/bin/unzip -tq "$RUNNER_TEMP/Wind-Waker-HD-decrypted.ipa"
