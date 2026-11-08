@@ -1,0 +1,78 @@
+name: Decrypt iOS build artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: GitHub Actions run ID containing the encrypted iOS IPA
+        required: true
+        type: string
+        default: "42431302540"
+      artifact_name:
+        description: Encrypted artifact name
+        required: true
+        type: string
+        default: "Wind-Waker-HD-iOS-encrypted-IPA"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  decrypt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download encrypted IPA artifact from the build run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p input output
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$ARTIFACT_NAME" \
+            --dir input
+          find input -maxdepth 2 -type f -printf '%p %s bytes\\n'
+          ENC="$(find input -type f -name '*.ipa.enc' -print -quit)"
+          test -n "$ENC" && test -s "$ENC"
+          echo "Encrypted IPA found: $ENC"
+
+      - name: Decrypt and validate IPA
+        env:
+          IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$IPA_ARTIFACT_PASSWORD" || { echo "Missing Actions secret IPA_ARTIFACT_PASSWORD"; exit 1; }
+          ENC="$(find input -type f -name '*.ipa.enc' -print -quit)"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+            -in "$ENC" \
+            -out output/Wind-Waker-HD-unsigned.ipa \
+            -pass env:IPA_ARTIFACT_PASSWORD
+          test -s output/Wind-Waker-HD-unsigned.ipa
+          unzip -tq output/Wind-Waker-HD-unsigned.ipa
+          python - <<'PY'
+          import plistlib, zipfile
+          p = "output/Wind-Waker-HD-unsigned.ipa"
+          with zipfile.ZipFile(p) as z:
+              apps = [n for n in z.namelist() if n.endswith(".app/Info.plist") and n.startswith("Payload/")]
+              if not apps:
+                  raise SystemExit("IPA validation failed: Payload/*.app/Info.plist not found")
+              for name in apps:
+                  info = plistlib.loads(z.read(name))
+                  exe = info.get("CFBundleExecutable")
+                  if not exe or name.rsplit("/", 1)[0] + "/" + exe not in z.namelist():
+                      raise SystemExit(f"IPA validation failed: executable missing for {name}")
+              print("PASS: decrypted iOS IPA bundle and executable validated.")
+          PY
+          ls -lh output/Wind-Waker-HD-unsigned.ipa
+
+      - name: Upload decrypted IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wind-Waker-HD-iOS-decrypted-IPA
+          path: output/Wind-Waker-HD-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 3
