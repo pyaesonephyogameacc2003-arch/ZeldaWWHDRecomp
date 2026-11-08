@@ -19,6 +19,7 @@ on:
       - 'runtime/src/overlay/overlay.cpp'
       - 'runtime/src/gfx/vulkan/backend.cpp'
       - 'ios/**'
+      - 'patches/ios-static-moltenvk-*.diff'
       - '.github/workflows/ios-runtime-build.yml'
 
 permissions:
