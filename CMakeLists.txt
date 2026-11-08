@@ -386,6 +386,18 @@ if(WWHD_HAS_VULKAN)
     else()
       target_link_libraries(wwhd PRIVATE glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
     endif()
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # iOS has no dlopen-able Vulkan loader. Link the static MoltenVK archive built by
+    # ios-runtime-build.yml and call its exported vkGetInstanceProcAddr directly.
+    if(NOT WWHD_IOS_MOLTENVK_XCFRAMEWORK)
+      message(FATAL_ERROR "iOS Vulkan requires WWHD_IOS_MOLTENVK_XCFRAMEWORK")
+    endif()
+    set(WWHD_IOS_MOLTENVK_ARCHIVE "${WWHD_IOS_MOLTENVK_XCFRAMEWORK}/ios-arm64/libMoltenVK.a")
+    if(NOT EXISTS "${WWHD_IOS_MOLTENVK_ARCHIVE}")
+      message(FATAL_ERROR "Static iOS MoltenVK archive not found: ${WWHD_IOS_MOLTENVK_ARCHIVE}")
+    endif()
+    target_compile_definitions(wwhd PRIVATE WWHD_IOS_STATIC_MOLTENVK=1)
+    target_link_libraries(wwhd PRIVATE "${WWHD_IOS_MOLTENVK_ARCHIVE}" glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
   elseif(APPLE)
     # SDL host on a Mac: Homebrew's loader is linked; SDL and the renderer find it in the process
     target_link_libraries(wwhd PRIVATE Vulkan::Vulkan glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)
