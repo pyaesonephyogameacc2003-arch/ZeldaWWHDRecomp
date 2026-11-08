@@ -116,7 +116,8 @@ jobs:
           xcodebuild build -quiet \
             -project MoltenVKPackaging.xcodeproj \
             -scheme "MoltenVK Package (iOS only)" \
-            -configuration Release
+            -configuration Release \\
+            MVK_HIDE_VULKAN_SYMBOLS=0
 
       - name: Verify iOS MoltenVK slice
         run: |
@@ -126,6 +127,8 @@ jobs:
           test -s "$XC/ios-arm64/libMoltenVK.a"
           test -s "$INC/vulkan/vulkan.h"
           lipo -info "$XC/ios-arm64/libMoltenVK.a"
+          echo "Checking exported static MoltenVK entry point..."
+          nm -gU "$XC/ios-arm64/libMoltenVK.a" | grep -E " _vkGetInstanceProcAddr$"
 
       - name: Configure iOS app bundle
         run: |
@@ -175,6 +178,8 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
           file "$BIN"
           lipo -info "$BIN"
+          echo "Checking linked Vulkan entry point in app executable..."
+          nm -gU "$BIN" | grep -E " _vkGetInstanceProcAddr$"
           if otool -L "$BIN" | grep -q 'AppKit.framework'; then
             echo "ERROR: macOS AppKit leaked into the iOS app link"
             exit 1
