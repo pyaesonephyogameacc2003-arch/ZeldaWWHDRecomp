@@ -1,51 +1,75 @@
-name: Decrypt Wind Waker HD IPA artifact
+name: Download and decrypt IPA from Google Drive
 
 on:
   workflow_dispatch:
+    inputs:
+      drive_file_id:
+        description: Google Drive file ID (from the shared link)
+        required: true
+        type: string
+        default: 1u0C7KYMTbn6cm_PMRYbXouLF6EyPzgBX
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
   decrypt:
-    name: Decrypt encrypted IPA
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Download encrypted IPA from successful build
-        uses: actions/download-artifact@v4
-        with:
-          name: Wind-Waker-HD-iOS-encrypted-IPA
-          path: encrypted
-          repository: pyaesonephyogameacc2003-arch/ZeldaWWHDRecomp
-          run-id: 42413548636
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Google Drive downloader
+        run: python -m pip install --disable-pip-version-check "gdown==6.5.1"
 
-      - name: Decrypt with the build's original OpenSSL settings
+      - name: Download file from Google Drive
+        env:
+          DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p input output
+          gdown --continue --retries 5 "https://drive.google.com/uc?id=${DRIVE_FILE_ID}" --output input/source-file
+          test -s input/source-file
+          echo "Downloaded file size:"
+          du -h input/source-file
+          file input/source-file
+
+      - name: Decrypt if encrypted and validate IPA
         env:
           IPA_ARTIFACT_PASSWORD: ${{ secrets.IPA_ARTIFACT_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$IPA_ARTIFACT_PASSWORD" || { echo "Missing Actions secret IPA_ARTIFACT_PASSWORD"; exit 1; }
-          INPUT="$(find encrypted -type f -name '*.ipa.enc' -print -quit)"
-          test -n "$INPUT" || { echo "Encrypted IPA file not found in downloaded artifact"; find encrypted -maxdepth 3 -type f -ls; exit 1; }
-          mkdir -p output
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-            -in "$INPUT" \
-            -out output/Wind-Waker-HD-unsigned.ipa \
-            -pass env:IPA_ARTIFACT_PASSWORD
+          INPUT="input/source-file"
+          if unzip -tq "$INPUT" >/dev/null 2>&1; then
+            cp "$INPUT" output/Wind-Waker-HD-unsigned.ipa
+            echo "Input is already a ZIP/IPA; no decryption needed."
+          else
+            test -n "$IPA_ARTIFACT_PASSWORD" || { echo "Missing Actions secret IPA_ARTIFACT_PASSWORD"; exit 1; }
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+              -in "$INPUT" \
+              -out output/Wind-Waker-HD-unsigned.ipa \
+              -pass env:IPA_ARTIFACT_PASSWORD
+          fi
           test -s output/Wind-Waker-HD-unsigned.ipa
-          unzip -t output/Wind-Waker-HD-unsigned.ipa
-          unzip -Z1 output/Wind-Waker-HD-unsigned.ipa | grep -Fxq 'Payload/wwhd.app/Info.plist'
-          unzip -Z1 output/Wind-Waker-HD-unsigned.ipa | grep -Fxq 'Payload/wwhd.app/wwhd'
-          echo "PASS: decrypted IPA ZIP structure verified."
+          unzip -tq output/Wind-Waker-HD-unsigned.ipa
+          python - <<'PY'
+          import plistlib, zipfile
+          p = "output/Wind-Waker-HD-unsigned.ipa"
+          with zipfile.ZipFile(p) as z:
+              apps = [n for n in z.namelist() if n.endswith(".app/Info.plist") and n.startswith("Payload/")]
+              if not apps:
+                  raise SystemExit("IPA validation failed: Payload/*.app/Info.plist not found")
+              for name in apps:
+                  info = plistlib.loads(z.read(name))
+                  exe = info.get("CFBundleExecutable")
+                  if not exe or name.rsplit("/", 1)[0] + "/" + exe not in z.namelist():
+                      raise SystemExit(f"IPA validation failed: executable missing for {name}")
+              print("PASS: IPA bundle and executable validated.")
+          PY
           ls -lh output/Wind-Waker-HD-unsigned.ipa
 
       - name: Upload decrypted IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Wind-Waker-HD-iOS-decrypted-IPA
+          name: Wind-Waker-HD-Google-Drive-decrypted-IPA
           path: output/Wind-Waker-HD-unsigned.ipa
           if-no-files-found: error
           retention-days: 3
