@@ -417,6 +417,13 @@ if(WWHD_SDL_HOST)
   target_compile_definitions(wwhd PRIVATE WWHD_SDL_HOST=1)
   target_link_libraries(wwhd PRIVATE SDL3::SDL3)
   if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # SDL3 enables its zstd support when pkg-config finds Homebrew zstd. Its
+    # static target then emits -lzstd, so preserve the Homebrew library search
+    # path for the final app link (the iOS SDK has no system libzstd).
+    if(NOT WWHD_IOS_ZSTD_LIBRARY_DIR OR NOT EXISTS "${WWHD_IOS_ZSTD_LIBRARY_DIR}/libzstd.dylib")
+      message(FATAL_ERROR "iOS SDL zstd support requires WWHD_IOS_ZSTD_LIBRARY_DIR containing libzstd.dylib")
+    endif()
+    target_link_directories(wwhd PRIVATE "${WWHD_IOS_ZSTD_LIBRARY_DIR}")
     target_link_libraries(wwhd PRIVATE compression
       "-framework Foundation" "-framework UIKit" "-framework QuartzCore" "-framework Metal"
       "-framework CoreGraphics" "-framework CoreVideo" "-framework IOSurface"
