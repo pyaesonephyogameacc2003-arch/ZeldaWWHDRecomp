@@ -113,6 +113,13 @@ jobs:
           test -s "$INC/vulkan/vulkan.h"
           lipo -info "$XC/ios-arm64/libMoltenVK.a"
 
+      - name: Checkout pinned SDL3 source (avoid release-asset 504)
+        uses: actions/checkout@v4
+        with:
+          repository: libsdl-org/SDL
+          ref: release-3.4.18
+          path: SDL3-source
+
       - name: Configure iOS app bundle (retry transient dependency downloads)
         run: |
           set -euo pipefail
@@ -126,6 +133,7 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DGEN_DIR="$RUNNER_TEMP/wwhd-generated-code" \
               -DWWHD_RENDERER=VULKAN \
+              -DFETCHCONTENT_SOURCE_DIR_SDL3="$GITHUB_WORKSPACE/SDL3-source" \
               -DWWHD_BUNDLED_DEPS=ON \
               -DWWHD_EDITOR_MCP=OFF \
               -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
