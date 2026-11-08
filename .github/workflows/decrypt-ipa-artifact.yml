@@ -1,13 +1,16 @@
 name: Download and decrypt IPA from Google Drive
 
 on:
+  push:
+    paths:
+      - ".github/workflows/decrypt-ipa-artifact.yml"
   workflow_dispatch:
     inputs:
       drive_file_id:
         description: Google Drive file ID (from the shared link)
         required: true
         type: string
-        default: 1u0C7KYMTbn6cm_PMRYbXouLF6EyPzgBX
+        default: 1Vec-yUexMhrGlqiQxF6xuteRuMQlj8FR
 
 permissions:
   contents: read
