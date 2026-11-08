@@ -81,11 +81,6 @@
 #include "overlay/window_target.h"
 #include <SDL3/SDL_vulkan.h>
 #endif
-#if defined(WWHD_IOS_STATIC_MOLTENVK)
-// MoltenVK is statically linked on iOS; there is no Vulkan loader dylib to dlopen.
-extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vkGetInstanceProcAddr(VkInstance instance, const char* name);
-#endif
 #include "platform/display_rate.h"
 #include "platform/gaming_mode.h"
 #include "platform/host.h"
@@ -5105,19 +5100,16 @@ void init() {
 #endif
   // the Vulkan loader (vulkan-1.dll, libvulkan.so.1), loaded here rather than imported (loader.h); the
   // windows below use the same one
-#if defined(WWHD_IOS_STATIC_MOLTENVK)
-  // iOS cannot dlopen a Vulkan loader. The iOS build links MoltenVK's static
-  // archive, so resolve Vulkan entry points from its in-process export instead.
-  PFN_vkGetInstanceProcAddr gipa = &vkGetInstanceProcAddr;
-#else
+  // SDL's Apple loader searches all Mach-O images for vkGetInstanceProcAddr. With
+  // static MoltenVK linked into the iOS app, this initializes SDL's Vulkan state
+  // without trying to dlopen a nonexistent libMoltenVK.dylib.
   if (!SDL_Vulkan_LoadLibrary(nullptr))
     exception_report::raise(std::string("Vulkan is not installed on this computer: the Vulkan runtime "
 #ifdef _WIN32
                                          "(vulkan-1.dll) "
 #endif
-                                         "could not be loaded (") + SDL_GetError() + ").\\n\\n" + kUpdateDriver);
+                                         "could not be loaded (") + SDL_GetError() + ").\n\n" + kUpdateDriver);
   auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
-#endif
 #ifdef __ANDROID__
   if (auto custom = drivers::open_custom()) gipa = custom;
 #endif
