@@ -11,7 +11,7 @@
  #endif
  #include "../../exception_report.h"
  #include "platform/present_observer.h"
-@@ -80,6 +80,11 @@
+@@ -80,6 +80,12 @@
  #include "platform/input_sdl.h"
  #include "overlay/window_target.h"
  #include <SDL3/SDL_vulkan.h>
@@ -24,7 +24,7 @@
  #endif
  #include "platform/display_rate.h"
  #include "platform/gaming_mode.h"
-@@ -5100,15 +5105,27 @@
+@@ -5100,15 +5105,32 @@
  #endif
    // the Vulkan loader (vulkan-1.dll, libvulkan.so.1), loaded here rather than imported (loader.h); the
    // windows below use the same one
