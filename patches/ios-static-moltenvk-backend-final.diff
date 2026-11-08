@@ -18,7 +18,8 @@
 +#endif
 +#if defined(__APPLE__) && defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
 +#include <SDL3/SDL_metal.h>
-+// Static MoltenVK: declare GIPA at file scope (extern "C" is illegal inside a function).
++#include <dlfcn.h>
++// Static MoltenVK exports the Vulkan loader entry point from the final iOS executable.
 +extern "C" PFN_vkVoidFunction vkGetInstanceProcAddr(VkInstance instance, const char *name);
  #endif
  #include "platform/display_rate.h"
@@ -31,11 +32,16 @@
 +#if defined(__APPLE__) && defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
 +  // iOS builds link static MoltenVK (cmake/IOSDependencies.cmake). There is no separate
 +  // libvulkan / MoltenVK dylib for SDL to dlopen. Use the file-scope linked symbol.
-+  gipa = vkGetInstanceProcAddr;
++  // Prefer the direct static symbol; dlsym is a diagnostic/fallback for toolchains that
++  // retain the symbol in the Mach-O export table but do not bind this TU as expected.
++  gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(&vkGetInstanceProcAddr);
++  if (!gipa)
++    gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
++  LOG("[vulkan] iOS MoltenVK GIPA: direct=%p dlsym=%p", (void *)&vkGetInstanceProcAddr, (void *)gipa);
 +  if (!gipa)
 +    exception_report::raise(
-+        "Static MoltenVK is linked into this iOS build, but vkGetInstanceProcAddr is null. "
-+        "Rebuild with WWHD_IOS_MOLTENVK_XCFRAMEWORK pointing at the static MoltenVK.xcframework.");
++        "Static MoltenVK entry point is unavailable at runtime (direct and dlsym lookup both null). "
++        "Check the linked iOS MoltenVK symbol/export table.");
 +  LOG("[vulkan] iOS: statically linked MoltenVK");
 +#else
    if (!SDL_Vulkan_LoadLibrary(nullptr))
