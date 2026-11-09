@@ -5103,6 +5103,34 @@ void init() {
   // SDL's Apple loader searches all Mach-O images for vkGetInstanceProcAddr. With
   // static MoltenVK linked into the iOS app, this initializes SDL's Vulkan state
   // without trying to dlopen a nonexistent libMoltenVK.dylib.
+#if defined(WWHD_IOS_STATIC_MOLTENVK)
+  {
+    char exePath[4096];
+    uint32_t exeSize = sizeof(exePath);
+    const char *loadPath = nullptr;
+    if (_NSGetExecutablePath(exePath, &exeSize) == 0)
+      loadPath = exePath;
+    if (!SDL_Vulkan_LoadLibrary(loadPath)) {
+      auto gipaDlsym = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+          dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
+      if (!gipaDlsym)
+        exception_report::raise(std::string("iOS static MoltenVK missing: ") + SDL_GetError());
+      LOG("[vulkan] SDL_Vulkan_LoadLibrary failed (%s); using dlsym static MoltenVK",
+          SDL_GetError());
+      load_global_functions(gipaDlsym);
+    } else {
+      auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+          SDL_Vulkan_GetVkGetInstanceProcAddr());
+      if (!gipa)
+        gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+            dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
+      if (!gipa)
+        exception_report::raise("iOS static MoltenVK: null gipa");
+      LOG("[vulkan] loader: static MoltenVK in app image");
+      load_global_functions(gipa);
+    }
+  }
+#else
   if (!SDL_Vulkan_LoadLibrary(nullptr))
     exception_report::raise(std::string("Vulkan is not installed on this computer: the Vulkan runtime "
 #ifdef _WIN32
@@ -5114,6 +5142,7 @@ void init() {
   if (auto custom = drivers::open_custom()) gipa = custom;
 #endif
   load_global_functions(gipa);
+#endif
 #ifdef __ANDROID__
   SDL_AddEventWatch(lifecycle_watch, nullptr);
   const SDL_WindowFlags windowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_FULLSCREEN;
