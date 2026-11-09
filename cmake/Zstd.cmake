@@ -8,7 +8,7 @@
 # default with WWHD_BUNDLED_DEPS (the Linux and Windows release builds) and set explicitly by the
 # macOS release build (its runner has a Homebrew libzstd.dylib that must not end up in the release).
 # Without a system zstd the pinned source is downloaded as well; offline:
-# -DFETCHCONTENT_SOURCE_DIR_ZSTD=DIR with the unpacked zstd-1.5.7 release.
+# -DFETCHCONTENT_SOURCE_DIR_ZSTD=DIR with the unpacked zstd-1.5.7 tree.
 option(WWHD_BUNDLED_ZSTD "build zstd from its pinned source (static) instead of using a system zstd" ${WWHD_BUNDLED_DEPS})
 
 if(NOT WWHD_BUNDLED_ZSTD)
@@ -42,9 +42,11 @@ else()
   if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
   endif()
+  # Prefer the git tag archive: the release asset under facebook/zstd (redirected to meta/zstd)
+  # often returns HTTP 504 on GitHub Actions, same failure mode as SDL release assets.
   FetchContent_Declare(zstd
-    URL https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz
-    URL_HASH SHA256=eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3
+    URL https://github.com/facebook/zstd/archive/refs/tags/v1.5.7.tar.gz
+    URL_HASH SHA256=37d7284556b20954e56e1ca85b80226768902e2edabd3b649e9e72c0c9012ee3
     SOURCE_SUBDIR lib)  # no CMakeLists.txt there: only downloaded and unpacked, the library is defined below
   FetchContent_MakeAvailable(zstd)
   # lib/common, lib/decompress and lib/compress (no CLI, no multithreading, no assembly); compression is
