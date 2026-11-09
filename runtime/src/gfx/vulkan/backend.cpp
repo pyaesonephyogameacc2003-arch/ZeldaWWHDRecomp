@@ -5146,6 +5146,9 @@ void init() {
 #ifdef __ANDROID__
   SDL_AddEventWatch(lifecycle_watch, nullptr);
   const SDL_WindowFlags windowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_FULLSCREEN;
+#elif defined(WWHD_IOS_STATIC_MOLTENVK)
+  const SDL_WindowFlags windowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_FULLSCREEN |
+                                      SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #else
   // test runs: WWHD_HIDDEN_WINDOWS=1 never puts the windows on screen (nothing pops up or takes the
   // focus); the swapchains still exist, so frame dumps and present dumps work as with visible windows
@@ -5161,10 +5164,12 @@ void init() {
   R.tv.window = SDL_CreateWindow("Wind Waker HD — Vulkan", 1280, 720, windowFlags);
   if (!R.tv.window)
     exception_report::raise(SDL_GetError());
+#if defined(__ANDROID__) || defined(WWHD_IOS_STATIC_MOLTENVK)
 #ifdef __ANDROID__
   quest_theater::initialize();
-  // one surface: the GamePad picture is drawn into it (display_modes.h: picture-in-picture, GamePad
-  // only), never a window of its own
+#endif
+  // one surface: the GamePad picture is drawn into the TV window (display_modes.h).
+  // iOS allows only one window per display (SDL: "Only one window allowed per display").
 #else
   if (!getenv("WWHD_NO_GAMEPAD") && (!overlay::window_target::gamescope_session() ||
       ::hostui::startup_drc_mode() == gfx::kDrcWindow)) {
