@@ -16,98 +16,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Restore files and apply iOS MoltenVK fix
+      - name: Restore wiped files from last good commit
         run: |
           set -euo pipefail
           GOOD=12adb261688b1af088710927eb0bbea2f6f5b87f
           git checkout "$GOOD" -- CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
           test -s CMakeLists.txt
           test -s runtime/src/gfx/vulkan/backend.cpp
-
-          python3 << 'PY'
-          from pathlib import Path
-          import re
-
-          cmake_path = Path("CMakeLists.txt")
-          cmake = cmake_path.read_text()
-          old_cmake = (
-              "    target_link_libraries(wwhd PRIVATE "
-              '"${WWHD_IOS_MOLTENVK_ARCHIVE}" '
-              "glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)"
-          )
-          new_cmake = (
-              "    target_link_options(wwhd PRIVATE "
-              '"LINKER:-force_load,${WWHD_IOS_MOLTENVK_ARCHIVE}")\n'
-              "    target_link_libraries(wwhd PRIVATE "
-              "glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)"
-          )
-          if old_cmake not in cmake:
-              raise SystemExit("cmake pattern missing after restore")
-          cmake_path.write_text(cmake.replace(old_cmake, new_cmake, 1))
-          print("cmake force_load ok")
-
-          backend_path = Path("runtime/src/gfx/vulkan/backend.cpp")
-          backend = backend_path.read_text()
-          pat = re.compile(
-              r"  if \(!SDL_Vulkan_LoadLibrary\(nullptr\)\)\n"
-              r"    exception_report::raise\(std::string\(\"Vulkan is not installed[\s\S]*?"
-              r"\+ kUpdateDriver\);\n"
-              r"  auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>\("
-              r"SDL_Vulkan_GetVkGetInstanceProcAddr\(\)\);\n"
-              r"#ifdef __ANDROID__\n"
-              r"  if \(auto custom = drivers::open_custom\(\)\) gipa = custom;\n"
-              r"#endif\n"
-              r"  load_global_functions\(gipa\);"
-          )
-          m = pat.search(backend)
-          if not m:
-              raise SystemExit("backend load block not found")
-          ios_block = '''#if defined(WWHD_IOS_STATIC_MOLTENVK)
-  {
-    char exePath[4096];
-    uint32_t exeSize = sizeof(exePath);
-    const char *loadPath = nullptr;
-    if (_NSGetExecutablePath(exePath, &exeSize) == 0)
-      loadPath = exePath;
-    if (!SDL_Vulkan_LoadLibrary(loadPath)) {
-      auto gipaDlsym = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-          dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
-      if (!gipaDlsym)
-        exception_report::raise(std::string("iOS static MoltenVK missing: ") + SDL_GetError());
-      LOG("[vulkan] SDL_Vulkan_LoadLibrary failed (%s); using dlsym static MoltenVK",
-          SDL_GetError());
-      load_global_functions(gipaDlsym);
-    } else {
-      auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-          SDL_Vulkan_GetVkGetInstanceProcAddr());
-      if (!gipa)
-        gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-            dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
-      if (!gipa)
-        exception_report::raise("iOS static MoltenVK: null gipa");
-      LOG("[vulkan] loader: static MoltenVK in app image");
-      load_global_functions(gipa);
-    }
-  }
-#else
-''' + m.group(0) + "\n#endif"
-          backend_path.write_text(backend[: m.start()] + ios_block + backend[m.end() :])
-          print("backend iOS load path ok")
-          PY
-
+          wc -c CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
           git config user.name "pyaesonephyogameacc2003-arch"
           git config user.email "pyaesonephyogameacc2003@gmail.com"
           git add CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-          git commit -m "iOS: restore wiped files; force-load MoltenVK; load from app image"
+          git commit -m "Restore CMakeLists.txt and backend.cpp from 12adb26"
           git push origin HEAD:main
-
-      - name: Remove temporary workflow
-        run: |
-          set -euo pipefail
-          git pull --rebase origin main
-          rm -f .github/workflows/restore-ios-moltenvk.yml
-          git config user.name "pyaesonephyogameacc2003-arch"
-          git config user.email "pyaesonephyogameacc2003@gmail.com"
-          git add -A .github/workflows/restore-ios-moltenvk.yml
-          git commit -m "ci: remove temporary restore workflow" || exit 0
-          git push origin HEAD:main || true
