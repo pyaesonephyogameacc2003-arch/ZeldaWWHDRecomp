@@ -183,7 +183,8 @@ void stick(float x,float y,float cx,float cy,float radius,float& ox,float& oy) {
     float dx=(x-cx)/radius,dy=(y-cy)/radius;
     float d=std::sqrt(dx*dx+dy*dy);
     if(d>1.0f){dx/=d;dy/=d;}
-    const float dead=0.12f;
+    // Higher deadzone reduces camera drift from imprecise thumb placement on glass.
+    const float dead=0.20f;
     float m=std::sqrt(dx*dx+dy*dy);
     if(m<dead) ox=oy=0;
     else { float scaled=(m-dead)/(1.0f-dead); ox=dx/m*scaled; oy=dy/m*scaled; }
@@ -230,6 +231,8 @@ bool handle_event(const SDL_Event& e) {
     if(e.type==SDL_EVENT_FINGER_DOWN) {
         // Top-right: open/close Settings overlay (no Esc/Home on a phone).
         if(shown && e.tfinger.x>.86f && e.tfinger.y<.13f) {
+            for(auto& p:fingers) release(p.second);
+            fingers.clear(); lx=ly=rx=ry=lt=rt=0; buttons=0; publish();
             overlay::set_open(!overlay::is_open(), overlay::OpenReason::API);
             return true;
         }
@@ -242,8 +245,10 @@ bool handle_event(const SDL_Event& e) {
         if(!shown) { if(e.tfinger.x<.13f && e.tfinger.y<.13f) { shown=true; return true; } return false; }
         Finger f;
         const float x=e.tfinger.x,y=e.tfinger.y;
-        if(x<.34f && y>.55f) f.owner=Owner::LeftStick;
-        else if(x>.62f && y>.55f) f.owner=Owner::RightStick;
+        // tighter stick zones (was whole corners) — loose right-stick grab made the camera spin
+        auto near=[&](float cx,float cy,float r){float dx=x-cx,dy=y-cy;return dx*dx+dy*dy<=r*r;};
+        if(near(.17f,.73f,.16f)) f.owner=Owner::LeftStick;
+        else if(near(.78f,.73f,.15f)) f.owner=Owner::RightStick;
         else {
             f.owner=Owner::Button;
             if(y<.29f && x<.22f) f.code=100;

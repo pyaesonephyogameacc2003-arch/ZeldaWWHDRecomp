@@ -5510,10 +5510,16 @@ static bool gamepad_touch(const SDL_Event& event) {
   float tx = 0, ty = 0;
 #if defined(__APPLE__)
   // iOS often reports windowID 0 for fingers; still route to the virtual pad.
-  if ((event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
-       event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED) &&
-      (event.tfinger.windowID == tvId || event.tfinger.windowID == 0) &&
-      !overlay::captures() && touch_pad::handle_event(event)) return true;
+  // Finger UP/CANCEL must always reach the pad even if windowID mismatches, or the
+  // right stick stays non-zero and the camera spins while Link stands still.
+  if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
+      event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED) {
+    const bool idOk = event.tfinger.windowID == tvId || event.tfinger.windowID == 0 ||
+                      event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED;
+    if (idOk && (event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED ||
+                 !overlay::captures()) &&
+        touch_pad::handle_event(event)) return true;
+  }
 #endif
 #ifdef __ANDROID__
   if (android_display_touch_event(event)) return true;
