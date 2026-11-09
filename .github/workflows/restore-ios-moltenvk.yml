@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - .github/workflows/restore-ios-moltenvk.yml
+      - tools/ios_moltenvk_patch.py
 
 jobs:
   restore:
@@ -13,19 +14,30 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Restore wiped files from last good commit
+      - name: Apply iOS MoltenVK patch
         run: |
           set -euo pipefail
-          GOOD=12adb261688b1af088710927eb0bbea2f6f5b87f
-          git checkout "$GOOD" -- CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-          test -s CMakeLists.txt
-          test -s runtime/src/gfx/vulkan/backend.cpp
-          wc -c CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
+          python3 tools/ios_moltenvk_patch.py
           git config user.name "pyaesonephyogameacc2003-arch"
           git config user.email "pyaesonephyogameacc2003@gmail.com"
           git add CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-          git commit -m "Restore CMakeLists.txt and backend.cpp from 12adb26"
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            echo "No file changes to commit"
+          else
+            git commit -m "iOS: force-load static MoltenVK and load from app image"
+            git push origin HEAD:main
+          fi
+
+      - name: Remove temporary restore workflow
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main || true
+          if [ -f .github/workflows/restore-ios-moltenvk.yml ]; then
+            rm -f .github/workflows/restore-ios-moltenvk.yml
+            git config user.name "pyaesonephyogameacc2003-arch"
+            git config user.email "pyaesonephyogameacc2003@gmail.com"
+            git add .github/workflows/restore-ios-moltenvk.yml
+            git commit -m "ci: remove temporary restore workflow" || exit 0
+            git push origin HEAD:main || true
+          fi
