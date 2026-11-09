@@ -1,0 +1,41 @@
+name: Apply iOS camera spin fix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/apply-ios-camera-spin.yml
+      - tools/ios_camera_spin_patch.py
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch and push
+        run: |
+          set -euo pipefail
+          python3 tools/ios_camera_spin_patch.py
+          git config user.name "pyaesonephyogameacc2003-arch"
+          git config user.email "pyaesonephyogameacc2003@gmail.com"
+          git add runtime/src/platform/touch_pad.cpp runtime/src/gfx/vulkan/backend.cpp
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "iOS: stop camera spin (release stuck right stick; tighter zones)"
+          git push origin HEAD:main
+
+      - name: Remove this workflow
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main || true
+          rm -f .github/workflows/apply-ios-camera-spin.yml
+          git config user.name "pyaesonephyogameacc2003-arch"
+          git config user.email "pyaesonephyogameacc2003@gmail.com"
+          git add .github/workflows/apply-ios-camera-spin.yml
+          git commit -m "ci: remove camera-spin apply workflow" || exit 0
+          git push origin HEAD:main || true
