@@ -1,0 +1,24 @@
+name: Apply iOS app icon
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/apply-ios-appicon.yml
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pillow and write icons
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q pillow
+          python3 <<'PY'
+          import base64, io
+          from pathlib import Path
+          from PIL import Image
+          # Wind compact Waker HD cover (user-provided), square crop source
+          JPEG_B64 = open('android/icon/app_icon_1024.png','rb').read() and None
+          PY
