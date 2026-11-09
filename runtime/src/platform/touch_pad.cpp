@@ -129,6 +129,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_wwhdrecomp_wwhd_TouchControls_nativeS
 #include <map>
 #include <mutex>
 #include "touch_pad.h"
+#include "../overlay/overlay.h"
 
 namespace touch_pad {
 bool enabled() { return true; }
@@ -227,6 +228,11 @@ bool handle_event(const SDL_Event& e) {
        e.type!=SDL_EVENT_FINGER_UP && e.type!=SDL_EVENT_FINGER_CANCELED) return false;
     std::lock_guard<std::mutex> lock(mu);
     if(e.type==SDL_EVENT_FINGER_DOWN) {
+        // Top-right: open/close Settings overlay (no Esc/Home on a phone).
+        if(shown && e.tfinger.x>.86f && e.tfinger.y<.13f) {
+            overlay::set_open(!overlay::is_open(), overlay::OpenReason::API);
+            return true;
+        }
         if(shown && e.tfinger.x<.13f && e.tfinger.y<.13f) {
             shown=false;
             for(auto& p:fingers) release(p.second);
@@ -287,6 +293,7 @@ void draw_overlay() {
     circle(d,ImVec2(w*.43f,h*.92f),s*.045f,"−",buttons&(1u<<SDL_GAMEPAD_BUTTON_BACK));
     circle(d,ImVec2(w*.57f,h*.92f),s*.045f,"+",buttons&(1u<<SDL_GAMEPAD_BUTTON_START));
     circle(d,ImVec2(s*.07f,s*.07f),s*.035f,"×");
+    circle(d,ImVec2(w-s*.07f,s*.07f),s*.035f,"SET",overlay::is_open());
     d->AddText(ImVec2(w*.02f,h*.025f),IM_COL32(255,255,255,190),"WWHD TOUCH");
 }
 } // namespace touch_pad

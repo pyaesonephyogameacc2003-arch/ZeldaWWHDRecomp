@@ -5509,9 +5509,11 @@ static bool gamepad_touch(const SDL_Event& event) {
   const SDL_WindowID tvId = SDL_GetWindowID(R.tv.window);
   float tx = 0, ty = 0;
 #if defined(__APPLE__)
+  // iOS often reports windowID 0 for fingers; still route to the virtual pad.
   if ((event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_MOTION ||
        event.type == SDL_EVENT_FINGER_UP || event.type == SDL_EVENT_FINGER_CANCELED) &&
-      event.tfinger.windowID == tvId && !overlay::captures() && touch_pad::handle_event(event)) return true;
+      (event.tfinger.windowID == tvId || event.tfinger.windowID == 0) &&
+      !overlay::captures() && touch_pad::handle_event(event)) return true;
 #endif
 #ifdef __ANDROID__
   if (android_display_touch_event(event)) return true;
