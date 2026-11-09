@@ -315,6 +315,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+  add_custom_command(TARGET wwhd POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/ios/AppIcon"
+            "$<TARGET_FILE_DIR:wwhd>"
+    COMMENT "Copy iOS app icons into bundle")
 endif()
 target_include_directories(wwhd PRIVATE runtime/include runtime/src runtime/src/gx2)
 add_dependencies(wwhd wwhd_build_info)
