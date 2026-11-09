@@ -5835,6 +5835,16 @@ void run_main_loop() {
     if (const int m = gfx::display_test_mode(frame_count()); m >= 0)
       ::hostui::set_drc_mode(m);
     overlay::set_density(SDL_GetWindowPixelDensity(R.tv.window));
+#if defined(WWHD_IOS_STATIC_MOLTENVK)
+  // Same physical DPI path as Android: mobile_ui phone layout needs inches, not points.
+  {
+    float dpi = 163.0f * SDL_GetWindowDisplayScale(R.tv.window);
+    if (dpi < 120.0f) dpi = 163.0f * SDL_GetWindowPixelDensity(R.tv.window);
+    if (dpi < 120.0f) dpi = 326.0f;
+    overlay::set_android_screen_dpi(dpi);
+    LOG("[display] iOS settings DPI %.0f (Android-style mobile_ui)", dpi);
+  }
+#endif
     auto now = std::chrono::steady_clock::now();
     double elapsed = std::chrono::duration<double>(now - titleTime).count();
     static auto polled = now;  // twice a second: frame interpolation's cap (and Android's display mode)

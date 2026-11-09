@@ -3547,7 +3547,7 @@ ImDrawData* frame(float pw, float ph, void (*renderer_init)()) {
     }
     ImGuiIO& io = ImGui::GetIO();
     // UI scale: HiDPI backing scale, and larger on large windows (a TV across the room)
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(WWHD_IOS_STATIC_MOLTENVK)
     static const bool loadedUiSize = [] {
         std::string saved;
         if (hostui::get("uiSize", saved)) g_ui_size = std::clamp(atoi(saved.c_str()), 0, 3);
@@ -3555,6 +3555,7 @@ ImDrawData* frame(float pw, float ph, void (*renderer_init)()) {
     }();
     (void)loadedUiSize;
     // phones get a more compact layout than tablets and handhelds (mobile_ui.h); a UI size the player chose decides
+    // iOS uses the same phone/tablet rules as Android so Settings matches the Android app.
     const mobile_ui::Layout ui = mobile_ui::layout(g_android_dpi, g_density, g_ui_size, float(pw), float(ph));
     mobile_ui::apply_touch_style(ImGui::GetStyle(), ui);
     const float scale = ui.scale;

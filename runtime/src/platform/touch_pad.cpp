@@ -272,6 +272,8 @@ void reset() {
 }
 void draw_overlay() {
     std::lock_guard<std::mutex> lock(mu);
+    // Android TouchControls hides the pad while Settings is open.
+    if (overlay::is_open()) return;
     ImGuiIO& io=ImGui::GetIO();
     ImDrawList* d=ImGui::GetForegroundDrawList(ImGui::GetMainViewport());
     const float w=io.DisplaySize.x,h=io.DisplaySize.y,s=std::min(w,h);
