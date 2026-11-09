@@ -1,9 +1,11 @@
 name: Restore iOS MoltenVK fix
+
 on:
   workflow_dispatch:
   push:
     paths:
       - .github/workflows/restore-ios-moltenvk.yml
+
 jobs:
   restore:
     runs-on: ubuntu-latest
@@ -13,23 +15,99 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore and patch
+
+      - name: Restore files and apply iOS MoltenVK fix
         run: |
           set -euo pipefail
           GOOD=12adb261688b1af088710927eb0bbea2f6f5b87f
           git checkout "$GOOD" -- CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-          python3 -c "import pathlib,base64; pathlib.Path('/tmp/p.py').write_bytes(base64.b64decode(open('/tmp/b64').read()))"
-          # inline base64 file
-          cat > /tmp/b64 << 'B64'
-CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aApjbWFrZSA9IFBhdGgoJ0NNYWtlTGlzdHMudHh0JykucmVhZF90ZXh0KCkKb2xkID0gKAogICAgJyAgICB0YXJnZXRfaW5jbHVkZV9kaXJlY3Rvcmllcyh3d2hkIFNZU1RFTSBQUklWQVRFICIke1dXSERfSU9TX01PTFRFTlZLX0lOQ0xVREVfRElSfSIpXG4nCiAgICAnICAgIHRhcmdldF9jb21waWxlX2RlZmluaXRpb25zKHd3aGQgUFJJVkFURSBXV0hEX0lPU19TVEFUSUNfTU9MVEVOVks9MSlcbicKICAgICcgICAgdGFyZ2V0X2xpbmtfbGlicmFyaWVzKHd3aGQgUFJJVkFURSAiJHtXV0hEX0lPU19NT0xURU5WS19BUkNISVZFfSIgZ2xzbGFuZzo6Z2xzbGFuZyBnbHNsYW5nOjpTUElSViBnbHNsYW5nOjpnbHNsYW5nLWRlZmF1bHQtcmVzb3VyY2UtbGltaXRzKScKKQpuZXcgPSAoCiAgICAnICAgIHRhcmdldF9pbmNsdWRlX2RpcmVjdG9yaWVzKHd3aGQgU1lTVEVNIFBSSVZBVEUgIiR7V1dIRF9JT1NfTU9MVEVOVktfSU5DTFVERV9ESVJ9IilcbicKICAgICcgICAgdGFyZ2V0X2NvbXBpbGVfZGVmaW5pdGlvbnMod3doZCBQUklWQVRFIFdXSERfSU9TX1NUQVRJQ19NT0xURU5WSz0xKVxuJwogICAgJyAgICAjIGZvcmNlX2xvYWQ6IGtlZXAgTW9sdGVuVksgZW50cnkgcG9pbnRzIGluIHRoZSBhcHAgaW1hZ2Ugc28gdGhleSBhcmUgbm90XG4nCiAgICAnICAgICMgZGVhZC1zdHJpcHBlZCAobm90aGluZyBjYWxscyB0aGVtIGJ5IHN5bWJvbCBhdCBsaW5rIHRpbWU7IFNETC9kbHN5bSBsb29rc1xuJwogICAgJyAgICAjIHRoZW0gdXAgYXQgcnVudGltZSkuIFJlcXVpcmVkIGZvciBTRExfVnVsa2FuX0xvYWRMaWJyYXJ5IG9uIHRoZSBtYWluIGJpbmFyeS5cbicKICAgICcgICAgdGFyZ2V0X2xpbmtfb3B0aW9ucyh3d2hkIFBSSVZBVEUgIkxJTktFUjotZm9yY2VfbG9hZCwke1dXSERfSU9TX01PTFRFTlZLX0FSQ0hJVkV9IilcbicKICAgICcgICAgdGFyZ2V0X2xpbmtfbGlicmFyaWVzKHd3aGQgUFJJVkFURSBnbHNsYW5nOjpnbHNsYW5nIGdsc2xhbmc6OlNQSVJWIGdsc2xhbmc6Omdsc2xhbmctZGVmYXVsdC1yZXNvdXJjZS1saW1pdHMpJwopCmlmIG9sZCBub3QgaW4gY21ha2U6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdjbWFrZSBwYXR0ZXJuIG1pc3NpbmcnKQpQYXRoKCdDTWFrZUxpc3RzLnR4dCcpLndyaXRlX3RleHQoY21ha2UucmVwbGFjZShvbGQsIG5ldywgMSkpCmJhY2tlbmQgPSBQYXRoKCdydW50aW1lL3NyYy9nZngvdnVsa2FuL2JhY2tlbmQuY3BwJykucmVhZF90ZXh0KCkKaW1wb3J0IHJlCnBhdCA9IHJlLmNvbXBpbGUocicgIGlmIFwoIVNETF9WdWxrYW5fTG9hZExpYnJhcnkodingnullcHB0clwpXClcbicKICAgIGV4Y2VwdGlvbl9yZXBvcnQ6OnJhaXNlXChzdGQ6OnN0cmluZ1woXCJWdWxrYW4gaXMgbm90IGluc3RhbGxlZFtcXHNcXFNdKj9cKSBcKyBTRExfR2V0RXJyb3JcKFwpIFwrIFwiW1xcc1xcU10qP1wiIFwrIGtVcGRhdGVEcml2ZXJcKTtcbicKICBhdXRvIGdpcGEgPSByZWludGVycHJldF9jYXN0PFBGTl92a0dldEluc3RhbmNlUHJvY0FkZHI+XChTRExfVnVsa2FuX0dldFZrR2V0SW5zdGFuY2VQcm9jQWRkclwoXClcKTtcbicKI2lmZGVmIF9fQU5EUk9JRF9fXG4nCiAgaWYgXChhdXRvIGN1c3RvbSA9IGRyaXZlcnM6Om9wZW5fY3VzdG9tXChcKVwpIGdpcGEgPSBjdXN0b207XG4nCiNlbmRpZlxuJwogIGxvYWRfZ2xvYmFsX2Z1bmN0aW9uc1woZ2lwYVwpOycpCm0gPSBwYXQuc2VhcmNoKGJhY2tlbmQpCmlmIG5vdCBtOgogICAgcmFpc2UgU3lzdGVtRXhpdCgnYmFja2VuZCBibG9jayBub3QgZm91bmQnKQpuZXdfYmxvY2sgPSAnJycij2lmIGRlZmluZWQoV1dIRF9JT1NfU1RBVElDX01PTFRFTlZLKQogIHsKICAgIGNoYXIgZXhlUGF0aFs0MDk2XTsKICAgIHVpbnQzMl90IGV4ZVNpemUgPSBzaXplb2YoZXhlUGF0aCk7CiAgICBjb25zdCBjaGFyICpsb2FkUGF0aCA9IG51bGxwdHI7CiAgICBpZiAoX05TR2V0RXhlY3V0YWJsZVBhdGgoZXhlUGF0aCwgJmV4ZVNpemUpID09IDApIGxvYWRQYXRoID0gZXhlUGF0aDsKICAgIGlmICghU0RMX1Z1bGthbl9Mb2FkTGlicmFyeShsb2FkUGF0aCkpIHsKICAgICAgYXV0byBnaXBhRGxzeW0gPSByZWludGVycHJldF9jYXN0PFBGTl92a0dldEluc3RhbmNlUHJvY0FkZHI+KGRsc3ltKFJUTERfREVGQVVMVCwgInZrR2V0SW5zdGFuY2VQcm9jQWRkciIpKTsKICAgICAgaWYgKCFnaXBhRGxzeW0pCiAgICAgICAgZXhjZXB0aW9uX3JlcG9ydDo6cmFpc2Uoc3RkOjpzdHJpbmcoImlPUyBzdGF0aWMgTW9sdGVuVksgbWlzc2luZzogIikgKyBTRExfR2V0RXJyb3IoKSk7CiAgICAgIExPRygiW3Z1bGthbl0gU0RMX1Z1bGthbl9Mb2FkTGlicmFyeSBmYWlsZWQgKCVzKTsgdXNpbmcgZGxzeW0gc3RhdGljIE1vbHRlblZLIiwgU0RMX0dldEVycm9yKCkpOwogICAgICBsb2FkX2dsb2JhbF9mdW5jdGlvbnMoZ2lwYURsc3ltKTsKICAgIH0gZWxzZSB7CiAgICAgIGF1dG8gZ2lwYSA9IHJlaW50ZXJwcmV0X2Nhc3Q8UEZOX3ZrR2V0SW5zdGFuY2VQcm9jQWRkcj4oU0RMX1Z1bGthbl9HZXRWa0dldEluc3RhbmNlUHJvY0FkZHIoKSk7CiAgICAgIGlmICghZ2lwYSkgZ2lwYSA9IHJlaW50ZXJwcmV0X2Nhc3Q8UEZOX3ZrR2V0SW5zdGFuY2VQcm9jQWRkcj4oZGxzeW0oUlRMRF9ERUZBVUxULCAidmtHZXRJbnN0YW5jZVByb2NBZGRyIikpOwogICAgICBpZiAoIWdpcGEpIGV4Y2VwdGlvbl9yZXBvcnQ6OnJhaXNlKCJpT1Mgc3RhdGljIE1vbHRlblZLOiBudWxsIGdpcGEiKTsKICAgICAgTE9HKCJbdnVsa2FuXSBsb2FkZXI6IHN0YXRpYyBNb2x0ZW5WSyBpbiBhcHAgaW1hZ2UiKTsKICAgICAgbG9hZF9nbG9iYWxfZnVuY3Rpb25zKGdpcGEpOwogICAgfQogIH0KI2Vsc2UKJyAnIiIgIiIrbS5ncm91cCgwKSsiIiInJycKI2VuZGlmJyIiJwpiYWNrZW5kID0gYmFja2VuZFs6bS5zdGFydCgpXSArIG5ld19ibG9jayArIGJhY2tlbmRbbS5lbmQoKTpdClBhdGgoJ3J1bnRpbWUvc3JjL2dmeC92dWxrYW4vYmFja2VuZC5jcHAnKS53cml0ZV90ZXh0KGJhY2tlbmQpCnByaW50KCdwYXRjaGVkIG9rJykK
-B64
-          python3 -c "import pathlib,base64; pathlib.Path('/tmp/p.py').write_bytes(base64.b64decode(pathlib.Path('/tmp/b64').read_text()))"
-          # simpler: just restore files without patch first
+          test -s CMakeLists.txt
+          test -s runtime/src/gfx/vulkan/backend.cpp
+
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+
+          cmake_path = Path("CMakeLists.txt")
+          cmake = cmake_path.read_text()
+          old_cmake = (
+              "    target_link_libraries(wwhd PRIVATE "
+              '"${WWHD_IOS_MOLTENVK_ARCHIVE}" '
+              "glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)"
+          )
+          new_cmake = (
+              "    target_link_options(wwhd PRIVATE "
+              '"LINKER:-force_load,${WWHD_IOS_MOLTENVK_ARCHIVE}")\n'
+              "    target_link_libraries(wwhd PRIVATE "
+              "glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)"
+          )
+          if old_cmake not in cmake:
+              raise SystemExit("cmake pattern missing after restore")
+          cmake_path.write_text(cmake.replace(old_cmake, new_cmake, 1))
+          print("cmake force_load ok")
+
+          backend_path = Path("runtime/src/gfx/vulkan/backend.cpp")
+          backend = backend_path.read_text()
+          pat = re.compile(
+              r"  if \(!SDL_Vulkan_LoadLibrary\(nullptr\)\)\n"
+              r"    exception_report::raise\(std::string\(\"Vulkan is not installed[\s\S]*?"
+              r"\+ kUpdateDriver\);\n"
+              r"  auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>\("
+              r"SDL_Vulkan_GetVkGetInstanceProcAddr\(\)\);\n"
+              r"#ifdef __ANDROID__\n"
+              r"  if \(auto custom = drivers::open_custom\(\)\) gipa = custom;\n"
+              r"#endif\n"
+              r"  load_global_functions\(gipa\);"
+          )
+          m = pat.search(backend)
+          if not m:
+              raise SystemExit("backend load block not found")
+          ios_block = '''#if defined(WWHD_IOS_STATIC_MOLTENVK)
+  {
+    char exePath[4096];
+    uint32_t exeSize = sizeof(exePath);
+    const char *loadPath = nullptr;
+    if (_NSGetExecutablePath(exePath, &exeSize) == 0)
+      loadPath = exePath;
+    if (!SDL_Vulkan_LoadLibrary(loadPath)) {
+      auto gipaDlsym = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+          dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
+      if (!gipaDlsym)
+        exception_report::raise(std::string("iOS static MoltenVK missing: ") + SDL_GetError());
+      LOG("[vulkan] SDL_Vulkan_LoadLibrary failed (%s); using dlsym static MoltenVK",
+          SDL_GetError());
+      load_global_functions(gipaDlsym);
+    } else {
+      auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+          SDL_Vulkan_GetVkGetInstanceProcAddr());
+      if (!gipa)
+        gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+            dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
+      if (!gipa)
+        exception_report::raise("iOS static MoltenVK: null gipa");
+      LOG("[vulkan] loader: static MoltenVK in app image");
+      load_global_functions(gipa);
+    }
+  }
+#else
+''' + m.group(0) + "\n#endif"
+          backend_path.write_text(backend[: m.start()] + ios_block + backend[m.end() :])
+          print("backend iOS load path ok")
+          PY
+
           git config user.name "pyaesonephyogameacc2003-arch"
           git config user.email "pyaesonephyogameacc2003@gmail.com"
-          # Apply cmake-only via python one-liner
-          python3 -c "from pathlib import Path;c=Path('CMakeLists.txt').read_text();o='target_link_libraries(wwhd PRIVATE \"${WWHD_IOS_MOLTENVK_ARCHIVE}\" glslang';n='target_link_options(wwhd PRIVATE \"LINKER:-force_load,${WWHD_IOS_MOLTENVK_ARCHIVE}\")\\n    target_link_libraries(wwhd PRIVATE glslang';
-assert o in c; Path('CMakeLists.txt').write_text(c.replace(o,n,1)); print('cmake ok')"
           git add CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-          git commit -m "iOS: restore CMakeLists/backend; force-load MoltenVK"
+          git commit -m "iOS: restore wiped files; force-load MoltenVK; load from app image"
           git push origin HEAD:main
+
+      - name: Remove temporary workflow
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          rm -f .github/workflows/restore-ios-moltenvk.yml
+          git config user.name "pyaesonephyogameacc2003-arch"
+          git config user.email "pyaesonephyogameacc2003@gmail.com"
+          git add -A .github/workflows/restore-ios-moltenvk.yml
+          git commit -m "ci: remove temporary restore workflow" || exit 0
+          git push origin HEAD:main || true
