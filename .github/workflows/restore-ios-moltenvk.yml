@@ -1,6 +1,9 @@
 name: Restore iOS MoltenVK fix
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/restore-ios-moltenvk.yml
 jobs:
   restore:
     runs-on: ubuntu-latest
@@ -10,143 +13,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore files from last good commit and apply fix
+      - name: Restore and patch
         run: |
           set -euo pipefail
           GOOD=12adb261688b1af088710927eb0bbea2f6f5b87f
           git checkout "$GOOD" -- CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
-
-          python3 <<'PY'
-          from pathlib import Path
-
-          cmake = Path("CMakeLists.txt").read_text()
-          old = '''    target_include_directories(wwhd SYSTEM PRIVATE "${WWHD_IOS_MOLTENVK_INCLUDE_DIR}")
-    target_compile_definitions(wwhd PRIVATE WWHD_IOS_STATIC_MOLTENVK=1)
-    target_link_libraries(wwhd PRIVATE "${WWHD_IOS_MOLTENVK_ARCHIVE}" glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)'''
-          new = '''    target_include_directories(wwhd SYSTEM PRIVATE "${WWHD_IOS_MOLTENVK_INCLUDE_DIR}")
-    target_compile_definitions(wwhd PRIVATE WWHD_IOS_STATIC_MOLTENVK=1)
-    # force_load: keep MoltenVK entry points in the app image so they are not
-    # dead-stripped (nothing calls them by symbol at link time; SDL/dlsym looks
-    # them up at runtime). Required for SDL_Vulkan_LoadLibrary on the main binary.
-    target_link_options(wwhd PRIVATE "LINKER:-force_load,${WWHD_IOS_MOLTENVK_ARCHIVE}")
-    target_link_libraries(wwhd PRIVATE glslang::glslang glslang::SPIRV glslang::glslang-default-resource-limits)'''
-          if old not in cmake:
-              raise SystemExit("cmake pattern missing")
-          Path("CMakeLists.txt").write_text(cmake.replace(old, new, 1))
-
-          backend = Path("runtime/src/gfx/vulkan/backend.cpp").read_text()
-          old_inc = '''#ifdef WWHD_SDL_HOST
-#include "platform/input_sdl.h"
-#include "overlay/window_target.h"
-#include <SDL3/SDL_vulkan.h>
-#endif'''
-          new_inc = '''#ifdef WWHD_SDL_HOST
-#include "platform/input_sdl.h"
-#include "overlay/window_target.h"
-#include <SDL3/SDL_vulkan.h>
-#if defined(WWHD_IOS_STATIC_MOLTENVK)
-#include <dlfcn.h>
-#include <mach-o/dyld.h>
-#endif
-#endif'''
-          if old_inc not in backend:
-              raise SystemExit("backend include pattern missing")
-          backend = backend.replace(old_inc, new_inc, 1)
-
-          old_load = '''  // the Vulkan loader (vulkan-1.dll, libvulkan.so.1), loaded here rather than imported (loader.h); the
-  // windows below use the same one
-  // SDL's Apple loader searches all Mach-O images for vkGetInstanceProcAddr. With
-  // static MoltenVK linked into the iOS app, this initializes SDL's Vulkan state
-  // without trying to dlopen a nonexistent libMoltenVK.dylib.
-  if (!SDL_Vulkan_LoadLibrary(nullptr))
-    exception_report::raise(std::string("Vulkan is not installed on this computer: the Vulkan runtime "
-#ifdef _WIN32
-                                         "(vulkan-1.dll) "
-#endif
-                                         "could not be loaded (") + SDL_GetError() + ").\\n\\n" + kUpdateDriver);
-  auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
-#ifdef __ANDROID__
-  if (auto custom = drivers::open_custom()) gipa = custom;
-#endif
-  load_global_functions(gipa);'''
-          new_load = '''  // the Vulkan loader (vulkan-1.dll, libvulkan.so.1), loaded here rather than imported (loader.h); the
-  // windows below use the same one
-#if defined(WWHD_IOS_STATIC_MOLTENVK)
-  // iOS: MoltenVK is linked statically into the app (no libMoltenVK.dylib, no
-  // system Vulkan loader). SDL_Vulkan_LoadLibrary(nullptr) only dlopens dylib
-  // names and reports "Failed to load Vulkan Portability library". Point SDL at
-  // the main executable image instead, where force_load kept the MoltenVK
-  // entry points. Fall back to dlsym(RTLD_DEFAULT) if needed.
-  {
-    char exePath[4096];
-    uint32_t exeSize = sizeof(exePath);
-    const char *loadPath = nullptr;
-    if (_NSGetExecutablePath(exePath, &exeSize) == 0)
-      loadPath = exePath;
-    if (!SDL_Vulkan_LoadLibrary(loadPath)) {
-      auto gipaDlsym = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
-      if (!gipaDlsym) {
-        exception_report::raise(std::string("iOS static MoltenVK: Vulkan entry points not found (") +
-                                SDL_GetError() + "). The app was built without force-loaded MoltenVK.");
-      }
-      LOG("[vulkan] SDL_Vulkan_LoadLibrary failed (%s); using static MoltenVK via dlsym", SDL_GetError());
-      load_global_functions(gipaDlsym);
-    } else {
-      auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
-      if (!gipa)
-        gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr"));
-      if (!gipa)
-        exception_report::raise("iOS static MoltenVK: vkGetInstanceProcAddr is null after load");
-      LOG("[vulkan] loader: static MoltenVK in app image");
-      load_global_functions(gipa);
-    }
-  }
-#else
-  // SDL's Apple loader searches all Mach-O images for vkGetInstanceProcAddr. With
-  // static MoltenVK linked into the iOS app, this initializes SDL's Vulkan state
-  // without trying to dlopen a nonexistent libMoltenVK.dylib.
-  if (!SDL_Vulkan_LoadLibrary(nullptr))
-    exception_report::raise(std::string("Vulkan is not installed on this computer: the Vulkan runtime "
-#ifdef _WIN32
-                                         "(vulkan-1.dll) "
-#endif
-                                         "could not be loaded (") + SDL_GetError() + ").\\n\\n" + kUpdateDriver);
-  auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr());
-#ifdef __ANDROID__
-  if (auto custom = drivers::open_custom()) gipa = custom;
-#endif
-  load_global_functions(gipa);
-#endif'''
-          # Fix accidental double-escaping of newlines in the exception string
-          new_load = new_load.replace(').\\\\n\\\\n"', ').\\n\\n"')
-          old_load = old_load.replace(').\\\\n\\\\n"', ').\\n\\n"')
-          if old_load not in backend:
-              # try with single-escaped form matching the repo
-              old_load2 = old_load.replace(').\\n\\n"', ').\n\n"')
-              new_load2 = new_load.replace(').\\n\\n"', ').\n\n"')
-              if old_load2 in backend:
-                  backend = backend.replace(old_load2, new_load2, 1)
-              else:
-                  raise SystemExit("backend load pattern missing")
-          else:
-              backend = backend.replace(old_load, new_load, 1)
-          Path("runtime/src/gfx/vulkan/backend.cpp").write_text(backend)
-          print("patched ok")
-          PY
-
+          echo "CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aApjbWFrZSA9IFBhdGgoJ0NNYWtlTGlzdHMudHh0JykucmVhZF90ZXh0KCkKb2xkID0gKAogICAgJyAgICB0YXJnZXRfaW5jbHVkZV9kaXJlY3Rvcmllcyh3d2hkIFNZU1RFTSBQUklWQVRFIGBcIiR7V1dIRF9JT1NfTU9MVEVOVktfSU5DTFVERV9ESVJ9XCIpXGcnCiAgICAnICAgIHRhcmdldF9jb21waWxlX2RlZmluaXRpb25zKHd3aGQgUFJJVkFURSBxV1dIRF9JT1NfU1RBVElDX01PTFRFTlZLPTE6CiAgICAnICAgIHRhcmdldF9saW5rX2xpYnJhcmllcyh3d2hkIFBSSVZBVEUgXCIke1dXSERfSU9TX01PTFRFTlZLX0FSQ0hJVkV9XCIgZ2xzbGFuZzo6Z2xzbGFuZyBnbHNsYW5nOjpTUEJSViBnbHNsYW5nOjpnbHNsYW5nLWRlZmF1bHQtcmVzb3VyY2UtbGltaXRzKScKKQpuZXcgPSAoCiAgICAnICAgIHRhcmdldF9pbmNsdWRlX2RpcmVjdG9yaWVzKHd3aGQgU1lTVEVNIFBSSVZBVEUgXCIke1dXSERfSU9TX01PTFRFTlZLX0lOQ0xVREVfRElSfVwiKVxuJwogICAgJyAgICB0YXJnZXRfY29tcGlsZV9kZWZpbml0aW9ucyh3d2hkIFBSSVZBVEUgV1dIRF9JT1NfU1RBVElDX01PTFRFTlZLPTE6XG4nCiAgICAnICAgICMgZm9yY2VfbG9hZDoga2VlcCBNb2x0ZW5WSyBlbnRyeSBwb2ludHMgaW4gdGhlIGFwcCBpbWFnZSBzbyB0aGV5IGFyZSBub3RcbicKICAgICcgICAgIyBkZWFkLXN0cmlwcGVkIChub3RoaW5nIGNhbGxzIHRoZW0gYnkgc3ltYm9sIGF0IGxpbmsgdGltZTsgU0RMX2Rsc3ltIGxvb2tzXG4nCiAgICAnICAgICMgdGhlbSB1cCBhdCBydW50aW1lKS4gUmVxdWlyZWQgZm9yIFNETF9WdWxrYW5fTG9hZExpYnJhcnkgb24gdGhlIG1haW4gYmluYXJ5LlxuJwogICAgJyAgICB0YXJnZXRfbGlua19vcHRpb25zKHd3aGQgUFJJVkFURSBcIkxJTktFUjotZm9yY2VfbG9hZCwgJHtXV0hEX0lPU19NT0xURU5WS19BUkNISVZFfVwiKVxuJwogICAgJyAgICB0YXJnZXRfbGlua19saWJyYXJpZXMod3doZCBQUklWQVRFIGdsc2xhbmc6Omdsc2xhbmcgZ2xzbGFuZzo6U1BJUlYgZ2xzbGFuZzo6Z2xzbGFuZy1kZWZhdWx0LXJlc291cmNlLWxpbWl0cyknCikKaWYgb2xkIG5vdCBpbiBjbWFrZToKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2NtYWtlIHBhdHRlcm4gbWlzc2luZycpClBhdGgoJ0NNYWtlTGlzdHMudHh0Jykud3JpdGVfdGV4dChjbWFrZS5yZXBsYWNlKG9sZCwgbmV3LCAxKSkKYmFja2VuZCA9IFBhdGgoJ3J1bnRpbWUvc3JjL2dmeC92dWxrYW4vYmFja2VuZC5jcHAnKS5yZWFkX3RleHQoKQpuZWVkbGUgPSAnICBpZiAoIVNETF9WdWxrYW5fTG9hZExpYnJhcnkobnVsbHB0cikpXG4nCmlmIG5lZWRsZSBub3QgaW4gYmFja2VuZDoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2JhY2tlbmQgbmVlZGxlIG1pc3NpbmcnKQppbXBvcnQgcmUKCgo=" | base64 -d > /tmp/patch_ios_moltenvk.py
+          python3 /tmp/patch_ios_moltenvk.py
           git config user.name "pyaesonephyogameacc2003-arch"
           git config user.email "pyaesonephyogameacc2003@gmail.com"
           git add CMakeLists.txt runtime/src/gfx/vulkan/backend.cpp
           git commit -m "iOS: force-load static MoltenVK and load from app image"
           git push origin HEAD:main
-
-      - name: Remove this temporary workflow
-        run: |
-          set -euo pipefail
-          git config user.name "pyaesonephyogameacc2003-arch"
-          git config user.email "pyaesonephyogameacc2003@gmail.com"
-          git pull --rebase origin main
-          rm -f .github/workflows/restore-ios-moltenvk.yml
-          git add .github/workflows/restore-ios-moltenvk.yml
-          git commit -m "ci: remove temporary restore workflow" || exit 0
-          git push origin HEAD:main || true
