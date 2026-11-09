@@ -1,9 +1,11 @@
 name: Apply iOS app icon
+
 on:
   workflow_dispatch:
   push:
     paths:
       - .github/workflows/apply-ios-appicon.yml
+
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -11,14 +13,129 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Install pillow and write icons
+
+      - name: Install pillow and write iOS AppIcon set
         run: |
           set -euo pipefail
           python3 -m pip install -q pillow
           python3 <<'PY'
-          import base64, io
           from pathlib import Path
           from PIL import Image
-          # Wind compact Waker HD cover (user-provided), square crop source
-          JPEG_B64 = open('android/icon/app_icon_1024.png','rb').read() and None
+          src = Path("android/icon/app_icon_1024.png")
+          if not src.is_file():
+              raise SystemExit("android/icon/app_icon_1024.png missing")
+          im = Image.open(src).convert("RGBA")
+          w, h = im.size
+          side = min(w, h)
+          im = im.crop(((w - side) // 2, (h - side) // 2, (w + side) // 2, (h + side) // 2))
+          dest = Path("ios/AppIcon")
+          dest.mkdir(parents=True, exist_ok=True)
+          sizes = {
+              "AppIcon-40@2x.png": 80,
+              "AppIcon-40@3x.png": 120,
+              "AppIcon-60@2x.png": 120,
+              "AppIcon-60@3x.png": 180,
+              "AppIcon-76@2x.png": 152,
+              "AppIcon-83.5@2x.png": 167,
+          }
+          for name, px in sizes.items():
+              out = dest / name
+              im.resize((px, px), Image.Resampling.LANCZOS).save(out, format="PNG", optimize=True)
+              print("wrote", out, out.stat().st_size)
           PY
+
+      - name: Patch Info.plist.in and CMakeLists.txt
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path("ios/Info.plist.in")
+          text = path.read_text()
+          if "CFBundleIcons" not in text:
+              insert = """  <key>CFBundleIcons</key>
+            <dict>
+              <key>CFBundlePrimaryIcon</key>
+              <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                  <string>AppIcon-60</string>
+                  <string>AppIcon-76</string>
+                  <string>AppIcon-83.5</string>
+                  <string>AppIcon-40</string>
+                </array>
+              </dict>
+            </dict>
+            <key>CFBundleIcons~ipad</key>
+            <dict>
+              <key>CFBundlePrimaryIcon</key>
+              <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                  <string>AppIcon-76</string>
+                  <string>AppIcon-83.5</string>
+                  <string>AppIcon-60</string>
+                  <string>AppIcon-40</string>
+                </array>
+              </dict>
+            </dict>
+          """
+              text = text.replace("</dict>\n</plist>", insert + "</dict>\n</plist>")
+              path.write_text(text)
+              print("plist ok")
+          else:
+              print("plist already has icons")
+          cm = Path("CMakeLists.txt")
+          c = cm.read_text()
+          if "Copy iOS app icons into bundle" not in c:
+              needle = """  set_target_properties(wwhd PROPERTIES
+              MACOSX_BUNDLE TRUE
+              MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/ios-Info.plist"
+              XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${WWHD_IOS_BUNDLE_ID}"
+              XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+              XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
+              XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+          endif()"""
+              add = """  set_target_properties(wwhd PROPERTIES
+              MACOSX_BUNDLE TRUE
+              MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/ios-Info.plist"
+              XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${WWHD_IOS_BUNDLE_ID}"
+              XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+              XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
+              XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
+            add_custom_command(TARGET wwhd POST_BUILD
+              COMMAND ${CMAKE_COMMAND} -E copy_directory
+                      "${CMAKE_SOURCE_DIR}/ios/AppIcon"
+                      "$<TARGET_FILE_DIR:wwhd>"
+              COMMENT "Copy iOS app icons into bundle")
+          endif()"""
+              if needle not in c:
+                  raise SystemExit("cmake block not found")
+              cm.write_text(c.replace(needle, add, 1))
+              print("cmake ok")
+          else:
+              print("cmake already has icon copy")
+          PY
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name "pyaesonephyogameacc2003-arch"
+          git config user.email "pyaesonephyogameacc2003@gmail.com"
+          git add ios/AppIcon ios/Info.plist.in CMakeLists.txt
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "iOS: add app icon to home screen bundle"
+          git push origin HEAD:main
+
+      - name: Remove this workflow
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main || true
+          rm -f .github/workflows/apply-ios-appicon.yml
+          git config user.name "pyaesonephyogameacc2003-arch"
+          git config user.email "pyaesonephyogameacc2003@gmail.com"
+          git add .github/workflows/apply-apply-ios-appicon.yml
+          git commit -m "ci: remove appicon apply workflow" || exit 0
+          git push origin HEAD:main || true
