@@ -5032,14 +5032,14 @@ static void set_window_icons() {
   SDL_DestroySurface(icon);
 }
 bool gamepad_window_available() {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(WWHD_IOS_STATIC_MOLTENVK)
   return false;
 #else
   return !getenv("WWHD_NO_GAMEPAD");
 #endif
 }
 SDL_Window* ensure_gamepad_window(bool create) {
-#if !defined(__ANDROID__)
+#if !defined(__ANDROID__) && !defined(WWHD_IOS_STATIC_MOLTENVK)
   // Main thread creates the native window and surface; the render thread attaches Vulkan
   // resources at its next frame boundary. No second window exists until requested.
   static SDL_Window* requested = nullptr;
