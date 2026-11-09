@@ -136,7 +136,7 @@ jobs:
               -DWWHD_RENDERER=VULKAN \
               -DFETCHCONTENT_SOURCE_DIR_SDL3="$GITHUB_WORKSPACE/SDL3-source" \
               -DWWHD_BUNDLED_DEPS=ON \
-              -DWWHD_BUNDLED_ZSTD=OFF \
+              -DWWHD_BUNDLED_ZSTD=ON \
               -DWWHD_EDITOR_MCP=OFF \
               -DWWHD_IOS_MOLTENVK_XCFRAMEWORK="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/static/MoltenVK.xcframework" \
               -DWWHD_IOS_MOLTENVK_INCLUDE_DIR="$GITHUB_WORKSPACE/MoltenVK/Package/Release/MoltenVK/include" \
