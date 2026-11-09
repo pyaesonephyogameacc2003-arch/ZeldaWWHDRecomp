@@ -6,7 +6,7 @@ on:
     paths:
       - 'CMakeLists.txt'
       - 'cmake/WindowsDependencies.cmake'
-      - 'CMakeLists.txt'
+      - 'cmake/Zstd.cmake'
       - 'runtime/src/main.cpp'
       - 'runtime/src/core.cpp'
       - 'runtime/include/ppc.h'
